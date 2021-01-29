@@ -127,6 +127,7 @@ void M68k::writePltHeader(uint8_t *buf) const {
       0, 0, 0, 0,             // Put (gotPlt + 4) - pc here.
       0x4e, 0xfb, 0x1, 0x71,  // jmp ([gotPlt + 8, pc])
       0, 0, 0, 0,             // Put (gotPlt + 8) - pc here.
+      0, 0, 0, 0,             // Extend to PLT size (20 bytes).
   };
 
   uint64_t got = in.gotPlt->getVA();
