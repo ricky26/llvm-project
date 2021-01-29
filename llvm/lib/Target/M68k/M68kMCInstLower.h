@@ -18,6 +18,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/Target/TargetMachine.h"
 #include "llvm/Support/Compiler.h"
 
 namespace llvm {
