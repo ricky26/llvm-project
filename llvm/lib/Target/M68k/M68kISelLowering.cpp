@@ -1094,6 +1094,15 @@ SDValue M68kTargetLowering::LowerFormalArguments(
 //              Return Value Calling Convention Implementation
 //===----------------------------------------------------------------------===//
 
+bool M68kTargetLowering::CanLowerReturn(CallingConv::ID CCID,
+                    MachineFunction &MF, bool isVarArg,
+                    const SmallVectorImpl<ISD::OutputArg> &Outs,
+                    LLVMContext &Context) const {
+  SmallVector<CCValAssign, 16> RVLocs;
+  CCState CCInfo(CCID, isVarArg, MF, RVLocs, Context);
+  return CCInfo.CheckReturn(Outs, RetCC_M68k);
+}
+
 SDValue
 M68kTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CCID,
                                 bool isVarArg,

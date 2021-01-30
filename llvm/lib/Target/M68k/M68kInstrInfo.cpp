@@ -776,7 +776,7 @@ void M68kInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                         const TargetRegisterClass *RC,
                                         const TargetRegisterInfo *TRI) const {
   const MachineFunction &MF = *MBB.getParent();
-  assert(MF.getFrameInfo().getObjectSize(FrameIndex) == 4 &&
+  assert(MF.getFrameInfo().getObjectSize(FrameIndex) <= 4 &&
          "Stack slot too small for store");
   unsigned Opc = getStoreRegOpcode(SrcReg, RC, TRI, Subtarget);
   DebugLoc DL = MBB.findDebugLoc(MI);
@@ -791,7 +791,7 @@ void M68kInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                          const TargetRegisterClass *RC,
                                          const TargetRegisterInfo *TRI) const {
   const MachineFunction &MF = *MBB.getParent();
-  assert(MF.getFrameInfo().getObjectSize(FrameIndex) == 4 &&
+  assert(MF.getFrameInfo().getObjectSize(FrameIndex) <= 4 &&
          "Stack slot too small for store");
   unsigned Opc = getLoadRegOpcode(DstReg, RC, TRI, Subtarget);
   DebugLoc DL = MBB.findDebugLoc(MI);
