@@ -316,10 +316,19 @@ void M68kDisassembler::decodeImm(MCInst &Instr, unsigned Bead,
     llvm_unreachable("invalid imm");
   }
 
-  uint64_t Mask = (((uint64_t)1) << NumToRead) - 1;
-  uint64_t Bits = (Value >> NumRead) & Mask;
-  Scratch = (Scratch << NumToRead) | Bits;
-  NumRead += NumToRead;
+  // We have to read the bits in 16-bit chunks because we read them as
+  // 16-bit words but they're actually written in big-endian. If a read
+  // crosses a word boundary we have to be careful.
+  while (NumToRead > 0) {
+    unsigned BitsPastBoundary = NumRead & 0xf;
+    unsigned BitsUntilBoundary = 16 - BitsPastBoundary;
+    unsigned NumThisPass = std::min(BitsUntilBoundary, NumToRead);
+    uint64_t Mask = (((uint64_t)1) << NumThisPass) - 1;
+    uint64_t Bits = (Value >> NumRead) & Mask;
+    Scratch = (Scratch << NumThisPass) | Bits;
+    NumRead += NumThisPass;
+    NumToRead -= NumThisPass;
+  }
 }
 
 DecodeStatus M68kDisassembler::getInstruction(MCInst &Instr, uint64_t &Size,
