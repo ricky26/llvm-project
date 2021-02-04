@@ -162,6 +162,46 @@ bool M68kExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
     return TII->ExpandMOVSZX_RM(MIB, false, TII->get(M68k::MOV16rf), MVT::i32,
                                 MVT::i16);
 
+  case M68k::MOVSXd16q8:
+    return TII->ExpandMOVSZX_RM(MIB, true, TII->get(M68k::MOV8dq), MVT::i16,
+                                MVT::i8);
+  case M68k::MOVSXd32q8:
+    return TII->ExpandMOVSZX_RM(MIB, true, TII->get(M68k::MOV8dq), MVT::i32,
+                                MVT::i8);
+  case M68k::MOVSXd32q16:
+    return TII->ExpandMOVSZX_RM(MIB, true, TII->get(M68k::MOV16rq), MVT::i32,
+                                MVT::i16);
+
+  case M68k::MOVZXd16q8:
+    return TII->ExpandMOVSZX_RM(MIB, false, TII->get(M68k::MOV8dq), MVT::i16,
+                                MVT::i8);
+  case M68k::MOVZXd32q8:
+    return TII->ExpandMOVSZX_RM(MIB, false, TII->get(M68k::MOV8dq), MVT::i32,
+                                MVT::i8);
+  case M68k::MOVZXd32q16:
+    return TII->ExpandMOVSZX_RM(MIB, false, TII->get(M68k::MOV16rq), MVT::i32,
+                                MVT::i16);
+
+  case M68k::MOVSXd16k8:
+    return TII->ExpandMOVSZX_RM(MIB, true, TII->get(M68k::MOV8dk), MVT::i16,
+                                MVT::i8);
+  case M68k::MOVSXd32k8:
+    return TII->ExpandMOVSZX_RM(MIB, true, TII->get(M68k::MOV8dk), MVT::i32,
+                                MVT::i8);
+  case M68k::MOVSXd32k16:
+    return TII->ExpandMOVSZX_RM(MIB, true, TII->get(M68k::MOV16rk), MVT::i32,
+                                MVT::i16);
+
+  case M68k::MOVZXd16k8:
+    return TII->ExpandMOVSZX_RM(MIB, false, TII->get(M68k::MOV8dk), MVT::i16,
+                                MVT::i8);
+  case M68k::MOVZXd32k8:
+    return TII->ExpandMOVSZX_RM(MIB, false, TII->get(M68k::MOV8dk), MVT::i32,
+                                MVT::i8);
+  case M68k::MOVZXd32k16:
+    return TII->ExpandMOVSZX_RM(MIB, false, TII->get(M68k::MOV16rk), MVT::i32,
+                                MVT::i16);
+
   case M68k::MOV8cd:
     return TII->ExpandCCR(MIB, /* isToCCR */ true);
   case M68k::MOV8dc:
