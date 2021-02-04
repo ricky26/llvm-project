@@ -146,6 +146,9 @@ public:
                                           unsigned uid,
                                           MCContext &Ctx) const override;
 
+  void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
+                          SelectionDAG &DAG) const override;
+
   /// Returns relocation base for the given PIC jumptable.
   SDValue getPICJumpTableRelocBase(SDValue Table,
                                    SelectionDAG &DAG) const override;
@@ -196,7 +199,7 @@ private:
                            const SDLoc &DL, SelectionDAG &DAG,
                            const CCValAssign &VA, ISD::ArgFlagsTy Flags) const;
 
-  SDValue LowerMUL(SDValue &N, SelectionDAG &DAG) const;
+  SDValue LowerMUL(SDValue N, SelectionDAG &DAG) const;
   SDValue LowerXALUO(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerToBT(SDValue And, ISD::CondCode CC, const SDLoc &DL,
                     SelectionDAG &DAG) const;

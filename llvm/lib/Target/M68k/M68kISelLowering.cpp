@@ -110,33 +110,30 @@ M68kTargetLowering::M68kTargetLowering(const M68kTargetMachine &TM,
     setOperationAction(ISD::ADDE, VT, Custom);
     setOperationAction(ISD::SUBC, VT, Custom);
     setOperationAction(ISD::SUBE, VT, Custom);
-  }
 
-  // SADDO and friends are legal with this setup, i hope
-  for (auto VT : {MVT::i8, MVT::i16, MVT::i32}) {
     setOperationAction(ISD::SADDO, VT, Custom);
     setOperationAction(ISD::UADDO, VT, Custom);
     setOperationAction(ISD::SSUBO, VT, Custom);
     setOperationAction(ISD::USUBO, VT, Custom);
-  }
 
-  setOperationAction(ISD::BR_JT, MVT::Other, Expand);
-  setOperationAction(ISD::BRCOND, MVT::Other, Custom);
-
-  for (auto VT : {MVT::i8, MVT::i16, MVT::i32}) {
     setOperationAction(ISD::BR_CC, VT, Expand);
     setOperationAction(ISD::SELECT, VT, Custom);
     setOperationAction(ISD::SELECT_CC, VT, Expand);
     setOperationAction(ISD::SETCC, VT, Custom);
     setOperationAction(ISD::SETCCCARRY, VT, Custom);
-  }
 
-  for (auto VT : {MVT::i8, MVT::i16, MVT::i32}) {
     setOperationAction(ISD::BSWAP, VT, Expand);
     setOperationAction(ISD::CTTZ, VT, Expand);
     setOperationAction(ISD::CTLZ, VT, Expand);
     setOperationAction(ISD::CTPOP, VT, Expand);
+
+    setOperationAction(ISD::SHL_PARTS, VT, Expand);
+    setOperationAction(ISD::SRA_PARTS, VT, Expand);
+    setOperationAction(ISD::SRL_PARTS, VT, Expand);
   }
+
+  setOperationAction(ISD::BR_JT, MVT::Other, Expand);
+  setOperationAction(ISD::BRCOND, MVT::Other, Custom);
 
   setOperationAction(ISD::ConstantPool, MVT::i32, Custom);
   setOperationAction(ISD::JumpTable, MVT::i32, Custom);
@@ -1427,6 +1424,7 @@ SDValue M68kTargetLowering::LowerOperation(SDValue Op,
                                            SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
   default:
+    LLVM_DEBUG(dbgs() << "unable to lower "; Op.dump(&DAG));
     llvm_unreachable("Should not custom lower this!");
   case ISD::MUL:
     return LowerMUL(Op, DAG);
@@ -1467,7 +1465,19 @@ SDValue M68kTargetLowering::LowerOperation(SDValue Op,
   }
 }
 
-SDValue M68kTargetLowering::LowerMUL(SDValue &N, SelectionDAG &DAG) const {
+void M68kTargetLowering::ReplaceNodeResults(
+    SDNode *N, SmallVectorImpl<SDValue> &Results, SelectionDAG &DAG) const {
+  SDLoc DL(N);
+
+  switch (N->getOpcode()) {
+  default:
+    LLVM_DEBUG(dbgs() << "No ReplaceNodeResults for " << N->getOpcode() << "\n");
+    llvm_unreachable("cannot replace node results for this operation");
+    return;
+  }
+}
+
+SDValue M68kTargetLowering::LowerMUL(SDValue N, SelectionDAG &DAG) const {
   EVT VT = N->getValueType(0);
   SDLoc DL(N);
 
@@ -2086,11 +2096,11 @@ SDValue M68kTargetLowering::LowerToBT(SDValue Op, ISD::CondCode CC,
 
 SDValue M68kTargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {
   MVT VT = Op.getSimpleValueType();
-  assert(VT == MVT::i8 && "SetCC type must be 8-bit integer");
+  assert(((VT == MVT::i8) || (VT == MVT::i1)) && "SetCC type must be i1 or i8");
 
+  SDLoc DL(Op);
   SDValue Op0 = Op.getOperand(0);
   SDValue Op1 = Op.getOperand(1);
-  SDLoc DL(Op);
   ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(2))->get();
 
   // Optimize to BT if possible.
@@ -2101,8 +2111,6 @@ SDValue M68kTargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {
   if (Op0.hasOneUse() && isNullConstant(Op1) &&
       (CC == ISD::SETEQ || CC == ISD::SETNE)) {
     if (SDValue NewSetCC = LowerToBT(Op0, CC, DL, DAG)) {
-      if (VT == MVT::i1)
-        return DAG.getNode(ISD::TRUNCATE, DL, MVT::i1, NewSetCC);
       return NewSetCC;
     }
   }
@@ -2124,8 +2132,6 @@ SDValue M68kTargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {
       SDValue SetCC =
           DAG.getNode(M68kISD::SETCC, DL, MVT::i8,
                       DAG.getConstant(CCode, DL, MVT::i8), Op0.getOperand(1));
-      if (VT == MVT::i1)
-        return DAG.getNode(ISD::TRUNCATE, DL, MVT::i1, SetCC);
       return SetCC;
     }
   }
