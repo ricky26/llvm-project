@@ -30,32 +30,218 @@ using namespace llvm;
 typedef MCDisassembler::DecodeStatus DecodeStatus;
 
 namespace {
+constexpr unsigned MaxInstructionWords = 7;
+
+class M68kInstructionBuffer {
+  typedef SmallVector<uint16_t, MaxInstructionWords> BufferType;
+  BufferType Buffer;
+
+public:
+  M68kInstructionBuffer() {}
+
+  template<typename TIt>
+  M68kInstructionBuffer(TIt Start, TIt End)
+    : Buffer(Start, End) {}
+
+  unsigned size() const { return Buffer.size(); }
+
+  BufferType::const_iterator begin() const { return Buffer.begin(); }
+  BufferType::const_iterator end() const { return Buffer.end(); }
+
+  uint16_t operator[](unsigned Index) const {
+    assert((Index < Buffer.size()) && "tried to read out of bounds word");
+    return Buffer[Index];
+  }
+
+  void truncate(unsigned NewLength) {
+    assert((NewLength <= Buffer.size()) && "instruction buffer too short to truncate");
+    Buffer.resize(NewLength);
+  }
+
+  void dump() const {
+    for (unsigned I = 0; I < Buffer.size(); ++I) {
+      for (unsigned B = 0; B < 16; ++B) {
+        uint16_t Bit = (1 << (16 - B - 1));
+        unsigned IsClear = !(Buffer[I] & Bit);
+
+        if (B == 8) {
+          dbgs() << " ";
+        }
+
+        char Ch = IsClear ? '0' : '1';
+        dbgs() << Ch;
+      }
+
+      dbgs() << " ";
+    }
+
+    dbgs() << "\n";
+  }
+
+  static M68kInstructionBuffer fill(ArrayRef<uint8_t> Bytes) {
+    SmallVector<uint16_t, MaxInstructionWords> Buffer;
+    Buffer.resize(std::min(Bytes.size() / 2, Buffer.max_size()));
+
+    for (unsigned I = 0; I < Buffer.size(); ++I) {
+      unsigned Offset = I * 2;
+      uint64_t Hi = Bytes[Offset];
+      uint64_t Lo = Bytes[Offset + 1];
+      uint64_t Word = (Hi << 8) | Lo;
+      Buffer[I] = Word;
+
+      LLVM_DEBUG(errs() << format("Read word %x (%d)\n", (unsigned)Word, Buffer.size()));
+    }
+
+    return M68kInstructionBuffer(Buffer.begin(), Buffer.end());
+  }
+};
+
+class M68kInstructionReader {
+  M68kInstructionBuffer Buffer;
+  unsigned NumRead;
+
+public:
+  M68kInstructionReader(M68kInstructionBuffer Buf)
+    : Buffer(Buf), NumRead(0) {}
+
+  unsigned size() const {
+    return (Buffer.size() * 16) - NumRead;
+  }
+
+  uint64_t readBits(unsigned NumBits) {
+    assert((size() >= NumBits) && "not enough bits to read");
+
+    // We have to read the bits in 16-bit chunks because we read them as
+    // 16-bit words but they're actually written in big-endian. If a read
+    // crosses a word boundary we have to be careful.
+
+    uint64_t Value = 0;
+    while (NumBits > 0) {
+      unsigned AvailableThisWord = 16 - (NumRead & 0xf);
+      unsigned ToRead = std::min(NumBits, AvailableThisWord);
+
+      unsigned WordIndex = NumRead >> 4;
+      uint64_t ThisWord = Buffer[WordIndex];
+      uint64_t Mask = (1 << ToRead) - 1;
+      Value = (Value << ToRead) | (ThisWord & Mask);
+      NumRead += ToRead;
+      NumBits -= ToRead;
+    }
+    return Value;
+  }
+};
+
 struct M68kInstructionLookup {
   unsigned OpCode;
-  unsigned Length;
-  uint64_t Mask;
-  uint64_t Value;
+  M68kInstructionBuffer Mask;
+  M68kInstructionBuffer Value;
 
-  M68kInstructionLookup(unsigned OpCode)
-      : OpCode(OpCode), Length(0), Mask(0), Value(0) {}
-
-  void addBits(uint64_t Bits, unsigned Count) {
-    uint64_t BitMask = (1 << Count) - 1;
-    Mask |= BitMask << Length;
-    Value |= (Bits & BitMask) << Length;
-    Length += Count;
-  }
-
-  void addWildcard(unsigned Count) {
-    Length += Count;
-  }
+  unsigned size() const { return Mask.size(); }
 
   // Check whether this instruction could possibly match the given bytes.
-  bool matches(uint64_t Test, unsigned NumBits) const {
-    if (Length > NumBits) {
+  bool matches(const M68kInstructionBuffer &Test) const {
+    if (Test.size() < Value.size()) {
       return false;
     }
-    return (Test & Mask) == Value;
+
+    for (unsigned I = 0; I < Value.size(); ++I) {
+      uint16_t Have = Test[I];
+      uint16_t Need = Value[I];
+      uint16_t WordMask = Mask[I];
+
+      if ((Have & WordMask) != Need) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  void dump() const {
+    dbgs() << "M68kInstructionLookup " << OpCode << " ";
+
+    for (unsigned I = 0; I < Mask.size(); ++I) {
+      uint16_t WordMask = Mask[I];
+      uint16_t WordValue = Value[I];
+
+      for (unsigned B = 0; B < 16; ++B) {
+        uint16_t Bit = (1 << (15 - B));
+        unsigned IsMasked = !(WordMask & Bit);
+        unsigned IsClear = !(WordValue & Bit);
+
+        if (B == 8) {
+          dbgs() << " ";
+        }
+
+        char Ch = IsMasked ? '?' : (IsClear ? '0' : '1');
+        dbgs() << Ch;
+      }
+
+      dbgs() << " ";
+    }
+
+    dbgs() << "\n";
+  }
+};
+
+class M68kInstructionLookupBuilder {
+  std::array<uint16_t, MaxInstructionWords> Mask;
+  std::array<uint16_t, MaxInstructionWords> Value;
+  unsigned NumWritten;
+
+public:
+  M68kInstructionLookupBuilder(): NumWritten(0) {
+    Mask.fill(0);
+    Value.fill(0);
+  }
+
+  unsigned numWords() const {
+    assert(!(NumWritten & 0xf) && "instructions must be whole words");
+    return NumWritten >> 4;
+  }
+
+  bool isValid() const {
+    for (unsigned I = 0; I < numWords(); ++I) {
+      if (Mask[I]) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  M68kInstructionLookup build(unsigned OpCode) {
+    unsigned NumWords = numWords();
+    M68kInstructionBuffer MaskBuffer(Mask.begin(), Mask.begin() + NumWords);
+    M68kInstructionBuffer ValueBuffer(Value.begin(), Value.begin() + NumWords);
+    M68kInstructionLookup Ret;
+    Ret.OpCode = OpCode;
+    Ret.Mask = MaskBuffer;
+    Ret.Value = ValueBuffer;
+    return Ret;
+  }
+
+  void addBits(unsigned N, uint64_t Bits) {
+    while (N > 0) {
+      unsigned WordIndex = NumWritten >> 4;
+      unsigned WordOffset = NumWritten & 0xf;
+      unsigned AvailableThisWord = 16 - WordOffset;
+      unsigned ToWrite = std::min(AvailableThisWord, N);
+
+      uint16_t WordMask = (1 << ToWrite) - 1;
+      uint16_t BitsToWrite = Bits & WordMask;
+
+      Value[WordIndex] |= (BitsToWrite << WordOffset);
+      Mask[WordIndex] |= (WordMask << WordOffset);
+
+      Bits >>= ToWrite;
+      N -= ToWrite;
+      NumWritten += ToWrite;
+    }
+  }
+
+  void skipBits(unsigned N) {
+    NumWritten += N;
   }
 };
 
@@ -76,9 +262,9 @@ public:
                               ArrayRef<uint8_t> Bytes, uint64_t Address,
                               raw_ostream &CStream) const override;
   void decodeReg(MCInst &Instr, unsigned int Bead,
-                 uint64_t Value, unsigned &NumRead, unsigned &Scratch) const;
+                 M68kInstructionReader &Reader, unsigned &Scratch) const;
   void decodeImm(MCInst &Instr, unsigned int Bead,
-                 uint64_t Value, unsigned &NumRead, unsigned &Scratch) const;
+                 M68kInstructionReader &Reader, unsigned &Scratch) const;
   unsigned int getRegOperandIndex(MCInst &Instr, unsigned int Bead) const;
   unsigned int getImmOperandIndex(MCInst &Instr, unsigned int Bead) const;
 };
@@ -99,7 +285,7 @@ void M68kDisassembler::buildBeadTable() {
   Lookups.reserve(NumInstr);
 
   for (unsigned I = 0; I < NumInstr; ++I) {
-    M68kInstructionLookup Lookup(I);
+    M68kInstructionLookupBuilder Builder;
 
     for (const uint8_t* PartPtr = M68k::getMCInstrBeads(I);
          *PartPtr; ++PartPtr) {
@@ -119,19 +305,19 @@ void M68kDisassembler::buildBeadTable() {
         }
 
       case M68kBeads::Bits1:
-        Lookup.addBits(Ext, 1);
+        Builder.addBits(1, Ext);
         break;
 
       case M68kBeads::Bits2:
-        Lookup.addBits(Ext, 2);
+        Builder.addBits(2, Ext);
         break;
 
       case M68kBeads::Bits3:
-        Lookup.addBits(Ext, 3);
+        Builder.addBits(3, Ext);
         break;
 
       case M68kBeads::Bits4:
-        Lookup.addBits(Ext, 4);
+        Builder.addBits(4, Ext);
         break;
 
       case M68kBeads::DAReg:
@@ -139,29 +325,29 @@ void M68kDisassembler::buildBeadTable() {
       case M68kBeads::DReg:
       case M68kBeads::Reg:
         if (Op != M68kBeads::DA) {
-          Lookup.addWildcard(3);
+          Builder.skipBits(3);
         }
 
         if (Op != M68kBeads::Reg && Op != M68kBeads::DReg) {
-          Lookup.addWildcard(1);
+          Builder.skipBits(1);
         }
         break;
 
       case M68kBeads::Disp8:
-        Lookup.addWildcard(8);
+        Builder.skipBits(8);
         break;
 
       case M68kBeads::Imm8:
       case M68kBeads::Imm16:
-        Lookup.addWildcard(16);
+        Builder.skipBits(16);
         break;
 
       case M68kBeads::Imm32:
-        Lookup.addWildcard(32);
+        Builder.skipBits(32);
         break;
 
       case M68kBeads::Imm3:
-        Lookup.addWildcard(3);
+        Builder.skipBits(3);
         break;
 
       default:
@@ -169,14 +355,12 @@ void M68kDisassembler::buildBeadTable() {
       }
     }
 
-    assert(!(Lookup.Length & 0xf) && "lookups must be whole words");
-
     // Ignore instructions which are unmatchable (usually pseudo instructions).
-    if (!Lookup.Mask) {
+    if (!Builder.isValid()) {
       continue;
     }
 
-    Lookups.push_back(Lookup);
+    Lookups.push_back(Builder.build(I));
   }
 
 #if 0
@@ -263,39 +447,31 @@ unsigned M68kDisassembler::getImmOperandIndex(MCInst &Instr, unsigned Bead) cons
   return MIOpIdx;
 }
 
-void M68kDisassembler::decodeReg(
-    MCInst &Instr, unsigned Bead,
-    uint64_t Value, unsigned &NumRead,
-    unsigned &Scratch) const {
+void M68kDisassembler::decodeReg(MCInst &Instr, unsigned Bead,
+                                 M68kInstructionReader &Reader,
+                                 unsigned &Scratch) const {
   unsigned Op = Bead & 0xf;
-  LLVM_DEBUG(errs() << format("decodeReg %" PRIx64 " >> %d - %x\n",
-                              Value, (unsigned)NumRead, Bead));
+  LLVM_DEBUG(errs() << format("decodeReg %x\n", Bead));
 
   if (Op != M68kBeads::DA) {
-    Scratch = (Scratch &~ 7) | ((Value >> NumRead) & 7);
-    NumRead += 3;
+    Scratch = (Scratch &~ 7) | Reader.readBits(3);
   }
 
   if (Op != M68kBeads::Reg) {
-    bool DA = (Op != M68kBeads::DReg) && ((Value >> NumRead) & 1);
+    bool DA = (Op != M68kBeads::DReg) && Reader.readBits(1);
     if (!DA) {
       Scratch |= 8;
     } else {
       Scratch &=~ 8;
     }
-
-    if (Op != M68kBeads::DReg) {
-      ++NumRead;
-    }
   }
 }
 
 void M68kDisassembler::decodeImm(MCInst &Instr, unsigned Bead,
-                                 uint64_t Value, unsigned &NumRead,
+                                 M68kInstructionReader &Reader,
                                  unsigned &Scratch) const {
   unsigned Op = Bead & 0xf;
-  LLVM_DEBUG(errs() << format("decodeImm %" PRIx64 " >> %d - %x\n",
-                              Value, (unsigned)NumRead, Bead));
+  LLVM_DEBUG(errs() << format("decodeImm %x\n", Bead));
 
   unsigned NumToRead;
   switch (Op) {
@@ -316,53 +492,30 @@ void M68kDisassembler::decodeImm(MCInst &Instr, unsigned Bead,
     llvm_unreachable("invalid imm");
   }
 
-  // We have to read the bits in 16-bit chunks because we read them as
-  // 16-bit words but they're actually written in big-endian. If a read
-  // crosses a word boundary we have to be careful.
-  while (NumToRead > 0) {
-    unsigned BitsPastBoundary = NumRead & 0xf;
-    unsigned BitsUntilBoundary = 16 - BitsPastBoundary;
-    unsigned NumThisPass = std::min(BitsUntilBoundary, NumToRead);
-    uint64_t Mask = (((uint64_t)1) << NumThisPass) - 1;
-    uint64_t Bits = (Value >> NumRead) & Mask;
-    Scratch = (Scratch << NumThisPass) | Bits;
-    NumRead += NumThisPass;
-    NumToRead -= NumThisPass;
-  }
+  Scratch = (Scratch << NumToRead) | Reader.readBits(NumToRead);
 }
 
 DecodeStatus M68kDisassembler::getInstruction(MCInst &Instr, uint64_t &Size,
                             ArrayRef<uint8_t> Bytes, uint64_t Address,
                             raw_ostream &CStream) const {
   // Read and shift the input (fetch as much as we can for now).
-  unsigned AvailableLength = 0;
-  uint64_t Value = 0;
-  for (unsigned I = 0; I < sizeof(uint64_t)/sizeof(uint16_t); ++I) {
-    unsigned Offset = I * 2;
-    if (Bytes.size() < Offset + 2) {
-      break;
-    }
-
-    uint64_t Hi = Bytes[Offset];
-    uint64_t Lo = Bytes[Offset + 1];
-    uint64_t Word = (Hi << 8) | Lo;
-    Value |= Word << AvailableLength;
-    AvailableLength += 16;
+  auto Buffer = M68kInstructionBuffer::fill(Bytes);
+  if (Buffer.size() == 0) {
+    return Fail;
   }
-  LLVM_DEBUG(errs() << format("Read bits %" PRIx64 " (%d)\n", Value, AvailableLength));
 
   // Check through our lookup table.
   bool Found = false;
   for (unsigned I = 0; I < Lookups.size(); ++I) {
     const M68kInstructionLookup &Lookup = Lookups[I];
-    if (!Lookup.matches(Value, AvailableLength)) {
+    if (!Lookup.matches(Buffer)) {
       continue;
     }
 
     Found = true;
-    Size = Lookup.Length >> 3;
+    Size = Lookup.size() * 2;
+    Buffer.truncate(Lookup.size());
     Instr.setOpcode(Lookup.OpCode);
-
     LLVM_DEBUG(errs() << "decoding instruction "
                       << MCII->getName(Lookup.OpCode) << "\n");
     break;
@@ -372,9 +525,9 @@ DecodeStatus M68kDisassembler::getInstruction(MCInst &Instr, uint64_t &Size,
     return Fail;
   }
 
+  M68kInstructionReader Reader(Buffer);
   const MCInstrDesc& Desc = MCII->get(Instr.getOpcode());
   unsigned NumOperands = Desc.NumOperands;
-  unsigned NumRead = 0;
 
   // Now use the beads to decode the operands.
   enum class OperandType {
@@ -405,16 +558,16 @@ DecodeStatus M68kDisassembler::getInstruction(MCInst &Instr, uint64_t &Size,
 
       // These bits are constant - if we're here we've already matched them.
     case M68kBeads::Bits1:
-      NumRead += 1;
+      Reader.readBits(1);
       break;
     case M68kBeads::Bits2:
-      NumRead += 2;
+      Reader.readBits(2);
       break;
     case M68kBeads::Bits3:
-      NumRead += 3;
+      Reader.readBits(3);
       break;
     case M68kBeads::Bits4:
-      NumRead += 4;
+      Reader.readBits(4);
       break;
 
     case M68kBeads::DAReg:
@@ -426,7 +579,7 @@ DecodeStatus M68kDisassembler::getInstruction(MCInst &Instr, uint64_t &Size,
               (OpType[MIOpIdx] == OperandType::Reg)) &&
              "operands cannot change type");
       OpType[MIOpIdx] = OperandType::Reg;
-      decodeReg(Instr, Bead, Value, NumRead, Scratch[MIOpIdx]);
+      decodeReg(Instr, Bead, Reader, Scratch[MIOpIdx]);
       break;
 
     case M68kBeads::Disp8:
@@ -439,7 +592,7 @@ DecodeStatus M68kDisassembler::getInstruction(MCInst &Instr, uint64_t &Size,
              (OpType[MIOpIdx] == OperandType::Imm)) &&
              "operands cannot change type");
       OpType[MIOpIdx] = OperandType::Imm;
-      decodeImm(Instr, Bead, Value, NumRead, Scratch[MIOpIdx]);
+      decodeImm(Instr, Bead, Reader, Scratch[MIOpIdx]);
       break;
 
     default:
@@ -463,7 +616,7 @@ DecodeStatus M68kDisassembler::getInstruction(MCInst &Instr, uint64_t &Size,
     }
   }
 
-  assert((NumRead == Size * 8) && "wrong number of bits consumed");
+  assert((Reader.size() == 0) && "wrong number of bits consumed");
   return Success;
 }
 
