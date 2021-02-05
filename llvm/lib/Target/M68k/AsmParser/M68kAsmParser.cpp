@@ -425,7 +425,7 @@ bool M68kAsmParser::parseRegisterName(unsigned &RegNo, SMLoc Loc, StringRef Regi
   auto RegisterNameLower = RegisterName.lower();
 
   // Parse simple general-purpose registers.
-  if ((RegisterNameLower.size() == 2) && isdigit(RegisterNameLower[1])) {
+  if (RegisterNameLower.size() == 2) {
     static unsigned RegistersByIndex[] = {
         M68k::D0, M68k::D1, M68k::D2, M68k::D3,
         M68k::D4, M68k::D5, M68k::D6, M68k::D7,
@@ -433,31 +433,34 @@ bool M68kAsmParser::parseRegisterName(unsigned &RegNo, SMLoc Loc, StringRef Regi
         M68k::A4, M68k::A5, M68k::A6, M68k::SP,
     };
 
-      switch (RegisterNameLower[0]) {
-      case 'd':
-      case 'a': {
+    switch (RegisterNameLower[0]) {
+    case 'd':
+    case 'a': {
+      if (isdigit(RegisterNameLower[1])) {
         unsigned IndexOffset = (RegisterNameLower[0] == 'a') ? 8 : 0;
         unsigned RegIndex = (unsigned)(RegisterNameLower[1] - '0');
         if (RegIndex < 8) {
           RegNo = RegistersByIndex[IndexOffset + RegIndex];
           return true;
         }
-        break;
       }
+      break;
+    }
 
-      case 's':
-        if (RegisterNameLower[1] == 'p') {
-          RegNo = M68k::SP;
-          return true;
-        }
-        break;
-
-      case 'p':
-        if (RegisterNameLower[1] == 'c') {
-          RegNo = M68k::PC;
-          return true;
-        }
+    case 's':
+      if (RegisterNameLower[1] == 'p') {
+        RegNo = M68k::SP;
+        return true;
       }
+      break;
+
+    case 'p':
+      if (RegisterNameLower[1] == 'c') {
+        RegNo = M68k::PC;
+        return true;
+      }
+      break;
+    }
   }
 
   return false;

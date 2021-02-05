@@ -184,6 +184,9 @@ def BRA8  : MxBra<MxBrTarget8, MxType8,
 def BRA16 : MxBra<MxBrTarget16, MxType16,
             MxEncoding<MxBead4Bits<0x0>, MxBead4Bits<0x0>,
                        MxBead4Bits<0x0>, MxBead4Bits<0x6>, MxBead16Imm<0>>>;
+def BRA32 : MxBra<MxBrTarget16, MxType16,
+            MxEncoding<MxBead4Bits<0xf>, MxBead4Bits<0xf>,
+                       MxBead4Bits<0x0>, MxBead4Bits<0x6>, MxBead32Imm<0>>>;
 
 def : Pat<(br bb:$target), (BRA8 MxBrTarget8:$target)>;
 
@@ -257,6 +260,7 @@ def TAILJMPj  : MxPseudo<(outs), (ins MxARI32_TC:$dst)>;
 let isTerminator = 1, isReturn = 1, isBarrier = 1, hasCtrlDep = 1 in {
 
 def RTS : MxInst<(outs), (ins), "rts", [], MxEncFixed<0x4E75>>;
+def RTE : MxInst<(outs), (ins), "rte", [], MxEncFixed<0x4E73>>;
 
 let isCodeGenOnly = 1 in
 def RET : MxPseudo<(outs), (ins i32imm:$adj, variable_ops),

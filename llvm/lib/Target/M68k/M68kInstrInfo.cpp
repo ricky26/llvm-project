@@ -121,7 +121,7 @@ bool M68kInstrInfo::AnalyzeBranchImpl(MachineBasicBlock &MBB,
     }
 
     // Handle unconditional branches.
-    if (Opcode == M68k::BRA8 || Opcode == M68k::BRA16) {
+    if (Opcode == M68k::BRA8 || Opcode == M68k::BRA16 || Opcode == M68k::BRA32) {
       if (!iter->getOperand(0).isMBB())
         return true;
       UncondBranch = {iter, iter->getOperand(0).getMBB()};

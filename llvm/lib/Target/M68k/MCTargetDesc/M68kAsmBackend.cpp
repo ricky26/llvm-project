@@ -101,6 +101,8 @@ static unsigned getRelaxedOpcodeBranch(const MCInst &Inst) {
     return Op;
   case M68k::BRA8:
     return M68k::BRA16;
+  case M68k::BRA16:
+    return M68k::BRA32;
   case M68k::Bcc8:
     return M68k::Bcc16;
   case M68k::Bls8:
@@ -182,7 +184,7 @@ bool M68kAsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
   // A branch to the immediately following instruction automatically
   // uses the 16-bit displacement format because the 8-bit
   // displacement field contains $00 (zero offset).
-  return Value == 0 || !isInt<8>(Value);
+  return Value <= 0 || Value >= 0xff;
 }
 
 // NOTE Can tblgen help at all here to verify there aren't other instructions

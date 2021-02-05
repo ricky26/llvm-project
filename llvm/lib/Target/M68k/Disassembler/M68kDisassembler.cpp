@@ -30,7 +30,7 @@ using namespace llvm;
 typedef MCDisassembler::DecodeStatus DecodeStatus;
 
 namespace {
-constexpr unsigned MaxInstructionWords = 7;
+constexpr unsigned MaxInstructionWords = 11;
 
 class M68kInstructionBuffer {
   typedef SmallVector<uint16_t, MaxInstructionWords> BufferType;
