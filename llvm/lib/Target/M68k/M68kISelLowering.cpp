@@ -130,7 +130,11 @@ M68kTargetLowering::M68kTargetLowering(const M68kTargetMachine &TM,
     setOperationAction(ISD::SHL_PARTS, VT, Expand);
     setOperationAction(ISD::SRA_PARTS, VT, Expand);
     setOperationAction(ISD::SRL_PARTS, VT, Expand);
+
+    setOperationAction(ISD::SIGN_EXTEND_INREG, VT, Expand);
   }
+
+  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1, Expand);
 
   setOperationAction(ISD::BR_JT, MVT::Other, Expand);
   setOperationAction(ISD::BRCOND, MVT::Other, Custom);

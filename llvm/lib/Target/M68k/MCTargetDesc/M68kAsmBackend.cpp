@@ -101,8 +101,6 @@ static unsigned getRelaxedOpcodeBranch(const MCInst &Inst) {
     return Op;
   case M68k::BRA8:
     return M68k::BRA16;
-  case M68k::BRA16:
-    return M68k::BRA32;
   case M68k::Bcc8:
     return M68k::Bcc16;
   case M68k::Bls8:

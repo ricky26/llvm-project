@@ -41,6 +41,10 @@ public:
 
 M68k::M68k() {
   noneRel = R_68K_NONE;
+  copyRel = R_68K_COPY;
+  relativeRel = R_68K_RELATIVE;
+  gotRel = R_68K_GLOB_DAT;
+  pltRel = R_68K_JMP_SLOT;
   pltHeaderSize = 20;
   pltEntrySize = 20;
 }
@@ -72,6 +76,9 @@ RelExpr M68k::getRelExpr(RelType type, const Symbol &s,
   case R_68K_PLTOFF16:
   case R_68K_PLTOFF32:
     return R_PLT;
+
+  case R_68K_NONE:
+    return R_NONE;
 
   default:
     return R_ABS;
@@ -105,6 +112,10 @@ void M68k::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
   case R_68K_GOTPCREL8:
     checkIntUInt(loc, val, 8, rel);
     *loc = val;
+    break;
+
+  case R_68K_NONE:
+    // This is a marker, do nothing.
     break;
 
   default:

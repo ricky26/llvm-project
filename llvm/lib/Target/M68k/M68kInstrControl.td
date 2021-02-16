@@ -184,9 +184,6 @@ def BRA8  : MxBra<MxBrTarget8, MxType8,
 def BRA16 : MxBra<MxBrTarget16, MxType16,
             MxEncoding<MxBead4Bits<0x0>, MxBead4Bits<0x0>,
                        MxBead4Bits<0x0>, MxBead4Bits<0x6>, MxBead16Imm<0>>>;
-def BRA32 : MxBra<MxBrTarget16, MxType16,
-            MxEncoding<MxBead4Bits<0xf>, MxBead4Bits<0xf>,
-                       MxBead4Bits<0x0>, MxBead4Bits<0x6>, MxBead32Imm<0>>>;
 
 def : Pat<(br bb:$target), (BRA8 MxBrTarget8:$target)>;
 
