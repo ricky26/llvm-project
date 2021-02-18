@@ -175,14 +175,19 @@ bool M68kAsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
   if (!isInt<16>(Value)) {
     llvm_unreachable("Cannot relax the instruction, value does not fit");
   }
+
   // Relax if the value is too big for a (signed) i8. This means that byte-wide
   // instructions have to matched by default
-  //
+  if (!isInt<8>(Value)) {
+    return true;
+  }
+
   // NOTE
   // A branch to the immediately following instruction automatically
   // uses the 16-bit displacement format because the 8-bit
-  // displacement field contains $00 (zero offset).
-  return Value <= 0 || Value >= 0xff;
+  // displacement field contains $00 (zero offset). On 68020+, $FF is
+  // used to signal a 32-bit displacement, so we avoid that too.
+  return (Value == 0) || (Value == ~0u);
 }
 
 // NOTE Can tblgen help at all here to verify there aren't other instructions
