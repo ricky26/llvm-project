@@ -48,6 +48,8 @@ public:
   const M68kRegisterInfo *TRI;
   const M68kMachineFunctionInfo *MFI;
   const M68kFrameLowering *FL;
+  MachineRegisterInfo *MRI;
+
 
   bool runOnMachineFunction(MachineFunction &Fn) override;
 
@@ -63,6 +65,7 @@ public:
 private:
   bool ExpandMI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI);
   bool ExpandMBB(MachineBasicBlock &MBB);
+  bool ExpandMOVEM8(MachineInstrBuilder &MIB, bool isRM) const;
 };
 char M68kExpandPseudo::ID = 0;
 } // End anonymous namespace.
@@ -208,30 +211,30 @@ bool M68kExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
     return TII->ExpandCCR(MIB, /* isToCCR */ false);
 
   case M68k::MOVM8jm_P:
-    return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM32jm), /* isRM */ false);
+    return ExpandMOVEM8(MIB, /* isRM */ false);
   case M68k::MOVM16jm_P:
-    return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM32jm), /* isRM */ false);
+    return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM16jm), /* isRM */ false);
   case M68k::MOVM32jm_P:
     return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM32jm), /* isRM */ false);
 
   case M68k::MOVM8pm_P:
-    return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM32pm), /* isRM */ false);
+    return ExpandMOVEM8(MIB, /* isRM */ false);
   case M68k::MOVM16pm_P:
-    return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM32pm), /* isRM */ false);
+    return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM16pm), /* isRM */ false);
   case M68k::MOVM32pm_P:
     return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM32pm), /* isRM */ false);
 
   case M68k::MOVM8mj_P:
-    return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM32mj), /* isRM */ true);
+    return ExpandMOVEM8(MIB, /* isRM */ true);
   case M68k::MOVM16mj_P:
-    return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM32mj), /* isRM */ true);
+    return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM16mj), /* isRM */ true);
   case M68k::MOVM32mj_P:
     return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM32mj), /* isRM */ true);
 
   case M68k::MOVM8mp_P:
-    return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM32mp), /* isRM */ true);
+    return ExpandMOVEM8(MIB, /* isRM */ true);
   case M68k::MOVM16mp_P:
-    return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM32mp), /* isRM */ true);
+    return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM16mp), /* isRM */ true);
   case M68k::MOVM32mp_P:
     return TII->ExpandMOVEM(MIB, TII->get(M68k::MOVM32mp), /* isRM */ true);
 
@@ -342,12 +345,53 @@ bool M68kExpandPseudo::ExpandMBB(MachineBasicBlock &MBB) {
   return Modified;
 }
 
+bool M68kExpandPseudo::ExpandMOVEM8(MachineInstrBuilder &MIB, bool isRM) const {
+  int Reg = 0, Offset = 0, Base = 0;
+  auto DR8 = TRI->getRegClass(M68k::DR8RegClassID);
+  auto DL = MIB->getDebugLoc();
+  auto MI = MIB.getInstr();
+  auto &MBB = *MIB->getParent();
+
+  if (isRM) {
+    Reg = MIB->getOperand(0).getReg();
+    Offset = MIB->getOperand(1).getImm();
+    Base = MIB->getOperand(2).getReg();
+  } else {
+    Offset = MIB->getOperand(0).getImm();
+    Base = MIB->getOperand(1).getReg();
+    Reg = MIB->getOperand(2).getReg();
+  }
+
+  // If this is not a D register, we can't move it without expanding it into
+  // a register-register move first. However, in practice, this should never
+  // happen (it's not useful to store byte-size addresses in address registers).
+  assert(DR8->contains(Reg) && "only data byte registers can be stored on the stack");
+
+  if (isRM) {
+    BuildMI(MBB, MI, DL, TII->get(M68k::MOV8dp))
+        .addReg(Reg)
+        .addImm(Offset)
+        .addReg(Base)
+        .copyImplicitOps(*MIB);
+  } else {
+    BuildMI(MBB, MI, DL, TII->get(M68k::MOV8pd))
+        .addImm(Offset)
+        .addReg(Base)
+        .addReg(Reg)
+        .copyImplicitOps(*MIB);
+  }
+
+  MIB->eraseFromParent();
+  return true;
+}
+
 bool M68kExpandPseudo::runOnMachineFunction(MachineFunction &MF) {
   STI = &static_cast<const M68kSubtarget &>(MF.getSubtarget());
   TII = STI->getInstrInfo();
   TRI = STI->getRegisterInfo();
   MFI = MF.getInfo<M68kMachineFunctionInfo>();
   FL = STI->getFrameLowering();
+  MRI = &MF.getRegInfo();
 
   bool Modified = false;
   for (MachineBasicBlock &MBB : MF)

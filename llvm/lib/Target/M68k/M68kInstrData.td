@@ -449,6 +449,12 @@ def MOVM32pm : MxMOVEM_MR<MxType32, MxMOVEM_L, MxType32.POp, MxEncEAp_0, MxExtI1
 def MOVM32mj : MxMOVEM_RM<MxType32, MxMOVEM_L, MxType32.JOp, MxEncEAj_1, MxExtEmpty>;
 def MOVM32mp : MxMOVEM_RM<MxType32, MxMOVEM_L, MxType32.POp, MxEncEAp_1, MxExtI16_1>;
 
+def MOVM16jm : MxMOVEM_MR<MxType16, MxMOVEM_W, MxType16.JOp, MxEncEAj_0, MxExtEmpty>;
+def MOVM16pm : MxMOVEM_MR<MxType16, MxMOVEM_W, MxType16.POp, MxEncEAp_0, MxExtI16_0>;
+
+def MOVM16mj : MxMOVEM_RM<MxType16, MxMOVEM_W, MxType16.JOp, MxEncEAj_1, MxExtEmpty>;
+def MOVM16mp : MxMOVEM_RM<MxType16, MxMOVEM_W, MxType16.POp, MxEncEAp_1, MxExtI16_1>;
+
 // Pseudo versions. These a required by virtual register spill/restore since
 // the mask requires real register to encode. These instruction will be expanded
 // into real MOVEM after RA finishes.
