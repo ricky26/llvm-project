@@ -748,9 +748,6 @@ unsigned getLoadStoreRegOpcode(unsigned Reg, unsigned FrameIndex,
       return load ? M68k::MOVM8mp_P : M68k::MOVM8pm_P;
 
     if (M68k::CCRCRegClass.hasSubClassEq(RC)) {
-      // The CCR is 8-bits but all operations use 16-bits, so we
-      // have to expand the frame slot.
-      //FI.setObjectSize(FrameIndex, 2);
       return load ? M68k::MOV8cp : M68k::MOV8pc;
     }
 
