@@ -542,9 +542,30 @@ def MOV8pc : MxMoveFromCCRPseudo<(ins MxType8d.POp:$dst, CCRC:$src)>;
 
 def MOV16dc
   : MxMoveFromCCR<(outs MxType16d.ROp:$dst), (ins CCRC:$src), MxEncEAd_0, MxExtEmpty>;
-
 def MOV8dc : MxMoveFromCCRPseudo<(ins MxType8d.ROp:$dst, CCRC:$src)>;
 
+/// Move from SR
+/// --------------------------------------------------
+///  F  E  D  C  B  A  9  8  7  6 | 5  4  3 | 2  1  0
+/// --------------------------------------------------
+///                               | EFFECTIVE ADDRESS
+///  0  1  0  0  0  0  0  0  1  1 |   MODE  |   REG
+/// --------------------------------------------------
+
+let Uses = [SR] in
+class MxMoveFromSR<dag OUTS, dag INS, MxEncEA EA, MxEncExt EXT>
+    : MxInst<OUTS, INS, "move.w\t$src, $dst", [],
+      MxEncoding<EA.Reg, EA.DA, EA.Mode,
+                 MxBead4Bits<0b0011>, MxBead4Bits<0b0000>, MxBead2Bits<0b01>,
+                 EXT.Imm, EXT.B8, EXT.Scale, EXT.WL, EXT.DAReg>>;
+
+let mayStore = 1 in {
+def MOV16ps
+  : MxMoveFromSR<(outs), (ins MxType16d.POp:$dst, SRC:$src), MxEncEAp_0, MxExtI16_0>;
+} // let mayLoad = 1
+
+def MOV16ds
+  : MxMoveFromSR<(outs MxType16d.ROp:$dst), (ins SRC:$src), MxEncEAd_0, MxExtEmpty>;
 
 //===----------------------------------------------------------------------===//
 // LEA

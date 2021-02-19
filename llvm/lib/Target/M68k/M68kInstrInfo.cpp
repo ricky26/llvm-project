@@ -497,20 +497,31 @@ bool M68kInstrInfo::ExpandPUSH_POP(MachineInstrBuilder &MIB,
   return true;
 }
 
-bool M68kInstrInfo::ExpandCCR(MachineInstrBuilder &MIB, bool isToCCR) const {
+bool M68kInstrInfo::ExpandCCR(MachineInstrBuilder &MIB,
+                              bool isToCCR, bool isP) const {
 
   // Replace the pseudo instruction with the real one
   if (isToCCR) {
-    MIB->setDesc(get(M68k::MOV16cd));
+    MIB->setDesc(get(isP ? M68k::MOV16cp : M68k::MOV16cd));
   } else {
-    // FIXME #24 M68010 or better is required
-    MIB->setDesc(get(M68k::MOV16dc));
+    // NOTE: This is a horrible case: if the target machine is before
+    // the 68010, there is no move from CCR, but move from SR is not a
+    // supervisor instruction. So in this case, if we target 68000, we will
+    // generate illegal code for a non-supervisor use case for all other
+    // machines.
+    if (Subtarget.atLeastM68010()) {
+      MIB->setDesc(get(isP ? M68k::MOV16pc : M68k::MOV16dc));
+    } else {
+      MIB->setDesc(get(isP ? M68k::MOV16ps : M68k::MOV16ds));
+    }
   }
 
   // Promote used register to the next class
-  auto &Opd = MIB->getOperand(1);
-  Opd.setReg(getRegisterInfo().getMatchingSuperReg(
-      Opd.getReg(), M68k::MxSubRegIndex8Lo, &M68k::DR16RegClass));
+  if (!isP) {
+    auto &Opd = MIB->getOperand(isToCCR ? 1 : 0);
+    Opd.setReg(getRegisterInfo().getMatchingSuperReg(
+        Opd.getReg(), M68k::MxSubRegIndex8Lo, &M68k::DR16RegClass));
+  }
 
   return true;
 }
@@ -724,7 +735,9 @@ void M68kInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 }
 
 namespace {
-unsigned getLoadStoreRegOpcode(unsigned Reg, const TargetRegisterClass *RC,
+unsigned getLoadStoreRegOpcode(unsigned Reg, unsigned FrameIndex,
+                               MachineFrameInfo &FI,
+                               const TargetRegisterClass *RC,
                                const TargetRegisterInfo *TRI,
                                const M68kSubtarget &STI, bool load) {
   switch (TRI->getRegSizeInBits(*RC)) {
@@ -733,8 +746,13 @@ unsigned getLoadStoreRegOpcode(unsigned Reg, const TargetRegisterClass *RC,
   case 8:
     if (M68k::DR8RegClass.hasSubClassEq(RC))
       return load ? M68k::MOVM8mp_P : M68k::MOVM8pm_P;
-    if (M68k::CCRCRegClass.hasSubClassEq(RC))
-      return load ? M68k::MOV16cp : M68k::MOV16pc;
+
+    if (M68k::CCRCRegClass.hasSubClassEq(RC)) {
+      // The CCR is 8-bits but all operations use 16-bits, so we
+      // have to expand the frame slot.
+      //FI.setObjectSize(FrameIndex, 2);
+      return load ? M68k::MOV8cp : M68k::MOV8pc;
+    }
 
     llvm_unreachable("Unknown 1-byte regclass");
   case 16:
@@ -746,16 +764,20 @@ unsigned getLoadStoreRegOpcode(unsigned Reg, const TargetRegisterClass *RC,
   }
 }
 
-unsigned getStoreRegOpcode(unsigned SrcReg, const TargetRegisterClass *RC,
+unsigned getStoreRegOpcode(unsigned SrcReg, unsigned FrameIndex,
+                           MachineFrameInfo &FI,
+                           const TargetRegisterClass *RC,
                            const TargetRegisterInfo *TRI,
                            const M68kSubtarget &STI) {
-  return getLoadStoreRegOpcode(SrcReg, RC, TRI, STI, false);
+  return getLoadStoreRegOpcode(SrcReg, FrameIndex, FI, RC, TRI, STI, false);
 }
 
-unsigned getLoadRegOpcode(unsigned DstReg, const TargetRegisterClass *RC,
+unsigned getLoadRegOpcode(unsigned DstReg, unsigned FrameIndex,
+                          MachineFrameInfo &FI,
+                          const TargetRegisterClass *RC,
                           const TargetRegisterInfo *TRI,
                           const M68kSubtarget &STI) {
-  return getLoadStoreRegOpcode(DstReg, RC, TRI, STI, true);
+  return getLoadStoreRegOpcode(DstReg, FrameIndex, FI, RC, TRI, STI, true);
 }
 } // end anonymous namespace
 
@@ -775,10 +797,11 @@ void M68kInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                         int FrameIndex,
                                         const TargetRegisterClass *RC,
                                         const TargetRegisterInfo *TRI) const {
-  const MachineFunction &MF = *MBB.getParent();
-  assert(MF.getFrameInfo().getObjectSize(FrameIndex) <= 4 &&
+  MachineFunction &MF = *MBB.getParent();
+  MachineFrameInfo &FI = MF.getFrameInfo();
+  assert(FI.getObjectSize(FrameIndex) <= 4 &&
          "Stack slot too small for store");
-  unsigned Opc = getStoreRegOpcode(SrcReg, RC, TRI, Subtarget);
+  unsigned Opc = getStoreRegOpcode(SrcReg, FrameIndex, FI, RC, TRI, Subtarget);
   DebugLoc DL = MBB.findDebugLoc(MI);
   // (0,FrameIndex) <- $reg
   M68k::addFrameReference(BuildMI(MBB, MI, DL, get(Opc)), FrameIndex)
@@ -790,10 +813,11 @@ void M68kInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                          Register DstReg, int FrameIndex,
                                          const TargetRegisterClass *RC,
                                          const TargetRegisterInfo *TRI) const {
-  const MachineFunction &MF = *MBB.getParent();
-  assert(MF.getFrameInfo().getObjectSize(FrameIndex) <= 4 &&
+  MachineFunction &MF = *MBB.getParent();
+  MachineFrameInfo &FI = MF.getFrameInfo();
+  assert(FI.getObjectSize(FrameIndex) <= 4 &&
          "Stack slot too small for store");
-  unsigned Opc = getLoadRegOpcode(DstReg, RC, TRI, Subtarget);
+  unsigned Opc = getLoadRegOpcode(DstReg, FrameIndex, FI, RC, TRI, Subtarget);
   DebugLoc DL = MBB.findDebugLoc(MI);
   M68k::addFrameReference(BuildMI(MBB, MI, DL, get(Opc), DstReg), FrameIndex);
 }

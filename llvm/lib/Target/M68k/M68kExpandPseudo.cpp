@@ -206,9 +206,13 @@ bool M68kExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
                                 MVT::i16);
 
   case M68k::MOV8cd:
-    return TII->ExpandCCR(MIB, /* isToCCR */ true);
+    return TII->ExpandCCR(MIB, /* isToCCR */ true, /* isP */ false);
   case M68k::MOV8dc:
-    return TII->ExpandCCR(MIB, /* isToCCR */ false);
+    return TII->ExpandCCR(MIB, /* isToCCR */ false, /* isP */ false);
+  case M68k::MOV8cp:
+    return TII->ExpandCCR(MIB, /* isToCCR */ true, /* isP */ true);
+  case M68k::MOV8pc:
+    return TII->ExpandCCR(MIB, /* isToCCR */ false, /* isP */ true);
 
   case M68k::MOVM8jm_P:
     return ExpandMOVEM8(MIB, /* isRM */ false);

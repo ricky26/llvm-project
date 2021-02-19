@@ -316,7 +316,7 @@ public:
                       bool isPush) const;
 
   /// Moves to/from CCR
-  bool ExpandCCR(MachineInstrBuilder &MIB, bool isToCCR) const;
+  bool ExpandCCR(MachineInstrBuilder &MIB, bool isToCCR, bool isP) const;
 
   /// Expand all MOVEM pseudos into real MOVEMs
   bool ExpandMOVEM(MachineInstrBuilder &MIB, const MCInstrDesc &Desc,
