@@ -228,7 +228,25 @@ M68kSubtarget::classifyGlobalFunctionReference(const GlobalValue *GV,
   // at the cost of eager binding.
   auto *F = dyn_cast_or_null<Function>(GV);
   if (F && F->hasFnAttribute(Attribute::NonLazyBind)) {
-    return M68kII::MO_GOTPCREL;
+    switch (TM.getCodeModel()) {
+    default:
+      llvm_unreachable("Unsupported code model");
+    case CodeModel::Small:
+    case CodeModel::Kernel: {
+      if (isPositionIndependent())
+        return M68kII::MO_GOTPCREL;
+      return M68kII::MO_PC_RELATIVE_ADDRESS;
+    }
+    case CodeModel::Medium: {
+      if (isPositionIndependent())
+        return M68kII::MO_GOTPCREL;
+
+      if (atLeastM68020())
+        return M68kII::MO_PC_RELATIVE_ADDRESS;
+
+      return M68kII::MO_ABSOLUTE_ADDRESS;
+    }
+    }
   }
 
   // otherwise linker will figure this out
