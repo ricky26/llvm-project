@@ -349,6 +349,10 @@ static inline bool checkRegisterClass(unsigned RegNo, bool Data, bool Address, b
   case M68k::D7:
     return Data;
 
+  case M68k::SR:
+  case M68k::CCR:
+    return false;
+
   default:
     llvm_unreachable("unexpected register type");
     return false;
@@ -362,7 +366,8 @@ unsigned M68kAsmParser::validateTargetOperandClass(
   switch (Kind) {
   case MCK_XR16:
   case MCK_SPILL:
-    if (Operand.isReg()) {
+    if (Operand.isReg() &&
+        checkRegisterClass(Operand.getReg(), true, true, true)) {
       return Match_Success;
     }
     break;
@@ -447,9 +452,19 @@ bool M68kAsmParser::parseRegisterName(unsigned &RegNo, SMLoc Loc, StringRef Regi
       break;
     }
 
+    case 'c':
+      if (RegisterNameLower[1] == 'c' && RegisterNameLower[2] == 'r') {
+        RegNo = M68k::CCR;
+        return true;
+      }
+      break;
+
     case 's':
       if (RegisterNameLower[1] == 'p') {
         RegNo = M68k::SP;
+        return true;
+      } else if (RegisterNameLower[1] == 'r') {
+        RegNo = M68k::SR;
         return true;
       }
       break;

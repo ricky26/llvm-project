@@ -77,8 +77,9 @@ defm SP : MxAddressRegister<7, "sp", ["usp", "ssp", "isp", "a7"]>;
 class MxPseudoReg<string N, list<Register> SUBREGS = [], list<SubRegIndex> SUBIDX = []>
     : MxReg<N, 0, SUBREGS, SUBIDX>;
 
-def CCR : MxPseudoReg<"ccr">;
 def SR  : MxPseudoReg<"sr", [], []>;
+let Aliases = [SR] in
+def CCR : MxPseudoReg<"ccr">;
 
 def PC  : MxPseudoReg<"pc">;
 

@@ -544,6 +544,27 @@ def MOV16dc
   : MxMoveFromCCR<(outs MxType16d.ROp:$dst), (ins CCRC:$src), MxEncEAd_0, MxExtEmpty>;
 def MOV8dc : MxMoveFromCCRPseudo<(ins MxType8d.ROp:$dst, CCRC:$src)>;
 
+/// Move to SR
+/// --------------------------------------------------
+///  F  E  D  C  B  A  9  8  7  6 | 5  4  3 | 2  1  0
+/// --------------------------------------------------
+///                               | EFFECTIVE ADDRESS
+///  0  1  0  0  0  1  1  0  1  1 |   MODE  |   REG
+/// --------------------------------------------------
+let Defs = [SR] in
+class MxMoveToSR<dag INS, MxEncEA EA, MxEncExt EXT>
+    : MxInst<(outs SRC:$dst), INS, "move.w\t$src, $dst", [],
+      MxEncoding<EA.Reg, EA.DA, EA.Mode,
+                 MxBead4Bits<0b1011>, MxBead4Bits<0b0001>, MxBead2Bits<0b01>,
+                 EXT.Imm, EXT.B8, EXT.Scale, EXT.WL, EXT.DAReg>>;
+
+let mayLoad = 1 in {
+def MOV16sp : MxMoveToSR<(ins MxType16d.POp:$src), MxEncEAp_1, MxExtI16_1>;
+} // let mayLoad = 1
+
+def MOV16sd : MxMoveToSR<(ins MxType16d.ROp:$src), MxEncEAd_1, MxExtEmpty>;
+def MOV16si : MxMoveToSR<(ins MxType16d.IOp:$src), MxEncEAi, MxExtI16_1>;
+
 /// Move from SR
 /// --------------------------------------------------
 ///  F  E  D  C  B  A  9  8  7  6 | 5  4  3 | 2  1  0
