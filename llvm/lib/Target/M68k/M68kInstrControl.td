@@ -265,6 +265,14 @@ def RET : MxPseudo<(outs), (ins i32imm:$adj, variable_ops),
 } // isTerminator = 1, isReturn = 1, isBarrier = 1, hasCtrlDep = 1
 
 //===----------------------------------------------------------------------===//
+// STOP
+//===----------------------------------------------------------------------===//
+def STOP : MxInst<(outs), (ins MxType16.IOp:$imm), "stop\t$imm", [],
+            MxEncoding<MxBead4Bits<0b0010>, MxBead4Bits<0b0111>,
+              MxBead4Bits<0b1110>, MxBead4Bits<0b0100>,
+              MxBead16Imm<0>>>;
+
+//===----------------------------------------------------------------------===//
 // SETCC_C Patterns
 //===----------------------------------------------------------------------===//
 
