@@ -87,7 +87,7 @@ let Constraints = "$src = $dst" in {
 class MxBiArOp_RFRR_xEA<string MN, SDNode NODE, MxType TYPE, bits<4> CMD, MxBead REG>
     : MxInst<(outs TYPE.ROp:$dst), (ins TYPE.ROp:$src, TYPE.ROp:$opd),
            MN#"."#TYPE.Prefix#"\t$opd, $dst",
-           [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, TYPE.VT:$opd))],
+           [(set TYPE.VT:$dst, (NODE TYPE.VT:$src, TYPE.VT:$opd))],
            MxArithEncoding<MxBead4Bits<CMD>,
                            !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#TYPE.RLet#"EA"),
                            REG, !cast<MxEncEA>("MxEncEA"#TYPE.RLet#"_2"), MxExtEmpty>>;
@@ -101,7 +101,7 @@ class MxBiArOp_RFRR_xEA<string MN, SDNode NODE, MxType TYPE, bits<4> CMD, MxBead
 class MxBiArOp_RFRR_EAd<string MN, SDNode NODE, MxType TYPE, bits<4> CMD>
     : MxInst<(outs TYPE.ROp:$dst), (ins TYPE.ROp:$src, TYPE.ROp:$opd),
            MN#"."#TYPE.Prefix#"\t$opd, $dst",
-           [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, TYPE.VT:$opd))],
+           [(set TYPE.VT:$dst, (NODE TYPE.VT:$src, TYPE.VT:$opd))],
            MxArithEncoding<MxBead4Bits<CMD>,
                            !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#"EAd"),
                            MxBeadDReg<2>, MxEncEAd_0, MxExtEmpty>>;
@@ -110,7 +110,7 @@ class MxBiArOp_RFRR_EAd<string MN, SDNode NODE, MxType TYPE, bits<4> CMD>
 class MxBiArOp_RFRI_xEA<string MN, SDNode NODE, MxType TYPE, bits<4> CMD>
     : MxInst<(outs TYPE.ROp:$dst), (ins TYPE.ROp:$src, TYPE.IOp:$opd),
               MN#"."#TYPE.Prefix#"\t$opd, $dst",
-              [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, TYPE.IPat:$opd))],
+              [(set TYPE.VT:$dst, (NODE TYPE.VT:$src, TYPE.IPat:$opd))],
               MxArithEncoding<MxBead4Bits<CMD>,
                               !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#TYPE.RLet#"EA"),
                               MxBeadDReg<0>, MxEncEAi,
@@ -122,7 +122,7 @@ class MxBiArOp_RFRI_xEA<string MN, SDNode NODE, MxType TYPE, bits<4> CMD>
 class MxBiArOp_RFRI<string MN, SDNode NODE, MxType TYPE, bits<4> CMD>
     : MxInst<(outs TYPE.ROp:$dst), (ins TYPE.ROp:$src, TYPE.IOp:$opd),
               MN#"i."#TYPE.Prefix#"\t$opd, $dst",
-              [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, TYPE.IPat:$opd))],
+              [(set TYPE.VT:$dst, (NODE TYPE.VT:$src, TYPE.IPat:$opd))],
               MxArithImmEncoding<MxBead4Bits<CMD>, !cast<MxEncSize>("MxEncSize"#TYPE.Size),
                    !cast<MxEncEA>("MxEncEA"#TYPE.RLet#"_0"), MxExtEmpty,
                    !cast<MxEncExt>("MxExtI"#TYPE.Size#"_2")>>;
@@ -132,7 +132,7 @@ class MxBiArOp_RFRM<string MN, SDNode NODE, MxType TYPE, MxOperand OPD, ComplexP
                     bits<4> CMD, MxEncEA EA, MxEncExt EXT>
     : MxInst<(outs TYPE.ROp:$dst), (ins TYPE.ROp:$src, OPD:$opd),
            MN#"."#TYPE.Prefix#"\t$opd, $dst",
-           [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, (TYPE.Load PAT:$opd)))],
+           [(set TYPE.VT:$dst, (NODE TYPE.VT:$src, (TYPE.Load PAT:$opd)))],
            MxArithEncoding<MxBead4Bits<CMD>,
                            !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#TYPE.RLet#"EA"),
                            MxBeadDReg<0>, EA, EXT>>;
@@ -266,7 +266,7 @@ let Constraints = "$src = $dst" in {
 class MxBiArOp_RFRRF<string MN, SDNode NODE, MxType TYPE, bits<4> CMD>
     : MxInst<(outs TYPE.ROp:$dst), (ins TYPE.ROp:$src, TYPE.ROp:$opd),
              MN#"."#TYPE.Prefix#"\t$opd, $dst",
-             [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, TYPE.VT:$opd, CCR))],
+             [(set TYPE.VT:$dst, (NODE TYPE.VT:$src, TYPE.VT:$opd))],
              MxArithXEncoding<MxBead4Bits<CMD>,
                               !cast<MxEncSize>("MxEncSize"#TYPE.Size),
                               MxBead1Bit<0>, MxBeadDReg<2>, MxBeadDReg<0>>>;
@@ -325,7 +325,7 @@ let Defs = [CCR] in {
 class MxCmp_RR<MxType TYPE>
     : MxInst<(outs), (ins TYPE.ROp:$lhs, TYPE.ROp:$rhs),
       "cmp."#TYPE.Prefix#"\t$lhs, $rhs",
-     [(set CCR, (MxCmp TYPE.VT:$lhs, TYPE.VT:$rhs))],
+     [(MxCmp TYPE.VT:$lhs, TYPE.VT:$rhs)],
      MxArithEncoding<MxBead4Bits<0xB>,
                     !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#"dEA"),
                     MxBeadDReg<1>, MxEncEAd_0, MxExtEmpty>>;
@@ -333,7 +333,7 @@ class MxCmp_RR<MxType TYPE>
 class MxCmp_RI<MxType TYPE>
     : MxInst<(outs), (ins TYPE.IOp:$imm, TYPE.ROp:$reg),
       "cmpi."#TYPE.Prefix#"\t$imm, $reg",
-      [(set CCR, (MxCmp TYPE.IPat:$imm, TYPE.VT:$reg))],
+      [(MxCmp TYPE.IPat:$imm, TYPE.VT:$reg)],
       MxArithImmEncoding<MxBead4Bits<0xC>, !cast<MxEncSize>("MxEncSize"#TYPE.Size),
                        MxEncEAd_1, MxExtEmpty,
                        !cast<MxEncExt>("MxExtI"#TYPE.Size#"_0")>>;
@@ -344,14 +344,14 @@ class MxCmp_MI<MxType TYPE, MxOperand MEMOpd, ComplexPattern MEMPat,
                MxEncEA EA, MxEncExt EXT>
     : MxInst<(outs), (ins TYPE.IOp:$imm, MEMOpd:$mem),
       "cmpi."#TYPE.Prefix#"\t$imm, $mem",
-      [(set CCR, (MxCmp TYPE.IPat:$imm, (load MEMPat:$mem)))],
+      [(MxCmp TYPE.IPat:$imm, (load MEMPat:$mem))],
       MxArithImmEncoding<MxBead4Bits<0xC>, !cast<MxEncSize>("MxEncSize"#TYPE.Size),
                        EA, EXT, !cast<MxEncExt>("MxExtI"#TYPE.Size#"_0")>>;
 
 class MxCmp_BI<MxType TYPE>
     : MxInst<(outs), (ins TYPE.IOp:$imm, MxAL32:$abs),
       "cmpi."#TYPE.Prefix#"\t$imm, $abs",
-      [(set CCR, (MxCmp TYPE.IPat:$imm, (load (i32 (MxWrapper tglobaladdr:$abs)))))],
+      [(MxCmp TYPE.IPat:$imm, (load (i32 (MxWrapper tglobaladdr:$abs))))],
       MxArithImmEncoding<MxBead4Bits<0xC>, !cast<MxEncSize>("MxEncSize"#TYPE.Size),
                        MxEncEAb, MxExtI32_1, !cast<MxEncExt>("MxExtI"#TYPE.Size#"_0")>>;
 
@@ -359,7 +359,7 @@ class MxCmp_RM<MxType TYPE, MxOperand MEMOpd, ComplexPattern MEMPat,
                MxEncEA EA, MxEncExt EXT>
     : MxInst<(outs), (ins TYPE.ROp:$reg, MEMOpd:$mem),
       "cmp."#TYPE.Prefix#"\t$mem, $reg",
-      [(set CCR, (MxCmp (load MEMPat:$mem), TYPE.ROp:$reg))],
+      [(MxCmp (load MEMPat:$mem), TYPE.ROp:$reg)],
       MxArithEncoding<MxBead4Bits<0xB>,
                     !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#"dEA"),
                     MxBeadDReg<0>, EA, EXT>>;
@@ -634,7 +634,7 @@ class MxNeg_D<MxType TYPE>
 let Uses = [CCR] in {
 class MxNegX_D<MxType TYPE>
     : MxInst<(outs TYPE.ROp:$dst), (ins TYPE.ROp:$src), "negx."#TYPE.Prefix#"\t$dst",
-             [(set TYPE.VT:$dst, (MxSubX 0, TYPE.VT:$src, CCR))],
+             [(set TYPE.VT:$dst, (MxSubX 0, TYPE.VT:$src))],
       MxNEGEncoding<MxBead4Bits<0x0>, !cast<MxEncSize>("MxEncSize"#TYPE.Size),
                     MxEncEAd_0, MxExtEmpty>>;
 }

@@ -502,12 +502,13 @@ def MOVM32mp_P : MxMOVEM_RM_Pseudo<MxType32r, MxType32.POp>;
 /// --------------------------------------------------
 let Defs = [CCR] in
 class MxMoveToCCR<dag INS, MxEncEA EA, MxEncExt EXT>
-    : MxInst<(outs CCRC:$dst), INS, "move.w\t$src, $dst", [],
+    : MxInst<(outs), INS, "move.w\t$src, ccr", [],
       MxEncoding<EA.Reg, EA.DA, EA.Mode,
                  MxBead4Bits<0b0011>, MxBead4Bits<0b0001>, MxBead2Bits<0b01>,
                  EXT.Imm, EXT.B8, EXT.Scale, EXT.WL, EXT.DAReg>>;
 
-class MxMoveToCCRPseudo<dag INS> : MxPseudo<(outs CCRC:$dst), INS>;
+let Defs = [CCR] in
+class MxMoveToCCRPseudo<dag INS> : MxPseudo<(outs), INS>;
 
 let mayLoad = 1 in {
 def MOV16cp : MxMoveToCCR<(ins MxType16d.POp:$src), MxEncEAp_1, MxExtI16_1>;
@@ -526,7 +527,7 @@ def  MOV8cd : MxMoveToCCRPseudo<(ins MxType8d.ROp:$src)>;
 /// --------------------------------------------------
 let Uses = [CCR] in
 class MxMoveFromCCR<dag OUTS, dag INS, MxEncEA EA, MxEncExt EXT>
-    : MxInst<OUTS, INS, "move.w\t$src, $dst", [],
+    : MxInst<OUTS, INS, "move.w\tccr, $dst", [],
       MxEncoding<EA.Reg, EA.DA, EA.Mode,
                  MxBead4Bits<0b1011>, MxBead4Bits<0b0000>, MxBead2Bits<0b01>,
                  EXT.Imm, EXT.B8, EXT.Scale, EXT.WL, EXT.DAReg>>,
@@ -536,13 +537,13 @@ class MxMoveFromCCRPseudo<dag INS> : MxPseudo<(outs), INS>;
 
 let mayStore = 1 in {
 def MOV16pc
-  : MxMoveFromCCR<(outs), (ins MxType16d.POp:$dst, CCRC:$src), MxEncEAp_0, MxExtI16_0>;
-def MOV8pc : MxMoveFromCCRPseudo<(ins MxType8d.POp:$dst, CCRC:$src)>;
+  : MxMoveFromCCR<(outs), (ins MxType16d.POp:$dst), MxEncEAp_0, MxExtI16_0>;
+def MOV8pc : MxMoveFromCCRPseudo<(ins MxType8d.POp:$dst)>;
 } // let mayLoad = 1
 
 def MOV16dc
-  : MxMoveFromCCR<(outs MxType16d.ROp:$dst), (ins CCRC:$src), MxEncEAd_0, MxExtEmpty>;
-def MOV8dc : MxMoveFromCCRPseudo<(ins MxType8d.ROp:$dst, CCRC:$src)>;
+  : MxMoveFromCCR<(outs MxType16d.ROp:$dst), (ins), MxEncEAd_0, MxExtEmpty>;
+def MOV8dc : MxMoveFromCCRPseudo<(ins MxType8d.ROp:$dst)>;
 
 /// Move to SR
 /// --------------------------------------------------
@@ -553,17 +554,17 @@ def MOV8dc : MxMoveFromCCRPseudo<(ins MxType8d.ROp:$dst, CCRC:$src)>;
 /// --------------------------------------------------
 let Defs = [SR] in
 class MxMoveToSR<dag INS, MxEncEA EA, MxEncExt EXT>
-    : MxInst<(outs SRC:$dst), INS, "move.w\t$src, $dst", [],
+    : MxInst<(outs), INS, "move.w\t$src, sr", [],
       MxEncoding<EA.Reg, EA.DA, EA.Mode,
                  MxBead4Bits<0b1011>, MxBead4Bits<0b0001>, MxBead2Bits<0b01>,
                  EXT.Imm, EXT.B8, EXT.Scale, EXT.WL, EXT.DAReg>>;
 
 let mayLoad = 1 in {
-def MOV16sp : MxMoveToSR<(ins MxType16d.POp:$src), MxEncEAp_1, MxExtI16_1>;
+def MOV16sp : MxMoveToSR<(ins MxType16d.POp:$src), MxEncEAp_0, MxExtI16_0>;
 } // let mayLoad = 1
 
-def MOV16sd : MxMoveToSR<(ins MxType16d.ROp:$src), MxEncEAd_1, MxExtEmpty>;
-def MOV16si : MxMoveToSR<(ins MxType16d.IOp:$src), MxEncEAi, MxExtI16_1>;
+def MOV16sd : MxMoveToSR<(ins MxType16d.ROp:$src), MxEncEAd_0, MxExtEmpty>;
+def MOV16si : MxMoveToSR<(ins MxType16d.IOp:$src), MxEncEAi, MxExtI16_0>;
 
 /// Move from SR
 /// --------------------------------------------------
@@ -575,18 +576,18 @@ def MOV16si : MxMoveToSR<(ins MxType16d.IOp:$src), MxEncEAi, MxExtI16_1>;
 
 let Uses = [SR] in
 class MxMoveFromSR<dag OUTS, dag INS, MxEncEA EA, MxEncExt EXT>
-    : MxInst<OUTS, INS, "move.w\t$src, $dst", [],
+    : MxInst<OUTS, INS, "move.w\tsr, $dst", [],
       MxEncoding<EA.Reg, EA.DA, EA.Mode,
                  MxBead4Bits<0b0011>, MxBead4Bits<0b0000>, MxBead2Bits<0b01>,
                  EXT.Imm, EXT.B8, EXT.Scale, EXT.WL, EXT.DAReg>>;
 
 let mayStore = 1 in {
 def MOV16ps
-  : MxMoveFromSR<(outs), (ins MxType16d.POp:$dst, SRC:$src), MxEncEAp_0, MxExtI16_0>;
+  : MxMoveFromSR<(outs), (ins MxType16d.POp:$dst), MxEncEAp_0, MxExtI16_0>;
 } // let mayLoad = 1
 
 def MOV16ds
-  : MxMoveFromSR<(outs MxType16d.ROp:$dst), (ins SRC:$src), MxEncEAd_0, MxExtEmpty>;
+  : MxMoveFromSR<(outs MxType16d.ROp:$dst), (ins), MxEncEAd_0, MxExtEmpty>;
 
 //===----------------------------------------------------------------------===//
 // LEA

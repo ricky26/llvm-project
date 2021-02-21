@@ -57,7 +57,7 @@ def : Pat<(i32 (MxWrapperPC tblockaddress :$src)), (LEA32q tblockaddress :$src)>
 let usesCustomInserter = 1, Uses = [CCR] in
 class MxCMove<MxType TYPE>
     : MxPseudo<(outs TYPE.ROp:$dst), (ins TYPE.ROp:$t, TYPE.ROp:$f, i8imm:$cond),
-      [(set TYPE.VT:$dst, (TYPE.VT (MxCmov TYPE.VT:$t, TYPE.VT:$f, imm:$cond, CCR)))]>;
+      [(set TYPE.VT:$dst, (TYPE.VT (MxCmov TYPE.VT:$t, TYPE.VT:$f, imm:$cond)))]>;
 
 def CMOV8d  : MxCMove<MxType8d>;
 def CMOV16d : MxCMove<MxType16d>;

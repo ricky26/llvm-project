@@ -765,10 +765,6 @@ unsigned getLoadStoreRegOpcode(unsigned Reg, unsigned FrameIndex,
     if (M68k::DR8RegClass.hasSubClassEq(RC))
       return load ? M68k::MOVM8mp_P : M68k::MOVM8pm_P;
 
-    if (M68k::CCRCRegClass.hasSubClassEq(RC)) {
-      return load ? M68k::MOV8cp : M68k::MOV8pc;
-    }
-
     llvm_unreachable("Unknown 1-byte regclass");
   case 16:
     assert(M68k::XR16RegClass.hasSubClassEq(RC) && "Unknown 2-byte regclass");

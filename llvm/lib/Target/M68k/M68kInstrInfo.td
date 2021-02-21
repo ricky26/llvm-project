@@ -32,66 +32,56 @@ def MxSDT_TCRet   : SDTypeProfile<0, 2, [SDTCisPtrTy<0>, SDTCisVT<1, i32>]>;
 
 def MxSDT_Wrapper : SDTypeProfile<1, 1, [SDTCisSameAs<0, 1>, SDTCisPtrTy<0>]>;
 
-def MxSDT_UnArithCCROut : SDTypeProfile<2, 1, [
+def MxSDT_UnArithCCROut : SDTypeProfile<1, 1, [
   /* RES */ SDTCisInt<0>,
-  /* CCR */ SDTCisVT<1, i8>,
-  /* OPD */ SDTCisSameAs<0, 2>
+  /* OPD */ SDTCisSameAs<0, 1>
 ]>;
 
 // RES, CCR <- op LHS, RHS
-def MxSDT_BiArithCCROut : SDTypeProfile<2, 2, [
+def MxSDT_BiArithCCROut : SDTypeProfile<1, 2, [
   /* RES */ SDTCisInt<0>,
-  /* CCR */ SDTCisVT<1, i8>,
-  /* LHS */ SDTCisSameAs<0, 2>,
-  /* RHS */ SDTCisSameAs<0, 3>
+  /* LHS */ SDTCisSameAs<0, 1>,
+  /* RHS */ SDTCisSameAs<0, 2>
 ]>;
 
 // RES, CCR <- op LHS, RHS, CCR
-def MxSDT_BiArithCCRInOut : SDTypeProfile<2, 3, [
+def MxSDT_BiArithCCRInOut : SDTypeProfile<1, 2, [
   /* RES 1 */ SDTCisInt<0>,
-  /*   CCR */ SDTCisVT<1, i8>,
-  /*   LHS */ SDTCisSameAs<0, 2>,
-  /*   RHS */ SDTCisSameAs<0, 3>,
-  /*   CCR */ SDTCisSameAs<1, 4>
+  /*   LHS */ SDTCisSameAs<0, 1>,
+  /*   RHS */ SDTCisSameAs<0, 2>,
 ]>;
 
 // RES1, RES2, CCR <- op LHS, RHS
-def MxSDT_2BiArithCCROut : SDTypeProfile<3, 2, [
+def MxSDT_2BiArithCCROut : SDTypeProfile<2, 2, [
   /* RES 1 */ SDTCisInt<0>,
   /* RES 2 */ SDTCisSameAs<0, 1>,
-  /*   CCR */ SDTCisVT<1, i8>,
   /*   LHS */ SDTCisSameAs<0, 2>,
   /*   RHS */ SDTCisSameAs<0, 3>
 ]>;
 
-def MxSDT_CmpTest : SDTypeProfile<1, 2, [
-   /* CCR */ SDTCisVT<0, i8>,
-   /* Ops */ SDTCisSameAs<1, 2>
+def MxSDT_CmpTest : SDTypeProfile<0, 2, [
+   /* Ops */ SDTCisSameAs<0, 1>
 ]>;
 
-def MxSDT_Cmov : SDTypeProfile<1, 4, [
+def MxSDT_Cmov : SDTypeProfile<1, 3, [
   /*  ARG */ SDTCisSameAs<0, 1>,
   /*  ARG */ SDTCisSameAs<1, 2>,
   /* Cond */ SDTCisVT<3, i8>,
-  /*  CCR */ SDTCisVT<4, i8>
 ]>;
 
-def MxSDT_BrCond : SDTypeProfile<0, 3, [
+def MxSDT_BrCond : SDTypeProfile<0, 2, [
   /* Dest */ SDTCisVT<0, OtherVT>,
-  /* Cond */ SDTCisVT<1, i8>,
-  /*  CCR */ SDTCisVT<2, i8>
+  /* Cond */ SDTCisVT<1, i8>
 ]>;
 
-def MxSDT_SetCC : SDTypeProfile<1, 2, [
+def MxSDT_SetCC : SDTypeProfile<1, 1, [
   /* BOOL */ SDTCisVT<0, i8>,
-  /* Cond */ SDTCisVT<1, i8>,
-  /*  CCR */ SDTCisVT<2, i8>
+  /* Cond */ SDTCisVT<1, i8>
 ]>;
 
-def MxSDT_SetCC_C : SDTypeProfile<1, 2, [
+def MxSDT_SetCC_C : SDTypeProfile<1, 1, [
   /* BOOL */ SDTCisInt<0>,
   /* Cond */ SDTCisVT<1, i8>,
-  /*  CCR */ SDTCisVT<2, i8>
 ]>;
 
 
@@ -124,25 +114,25 @@ def MxTCRet : SDNode<"M68kISD::TC_RETURN", MxSDT_TCRet,
 def MxWrapper   : SDNode<"M68kISD::Wrapper",   MxSDT_Wrapper>;
 def MxWrapperPC : SDNode<"M68kISD::WrapperPC", MxSDT_Wrapper>;
 
-def MxAdd  : SDNode<"M68kISD::ADD",  MxSDT_BiArithCCROut, [SDNPCommutative]>;
-def MxSub  : SDNode<"M68kISD::SUB",  MxSDT_BiArithCCROut>;
-def MxOr   : SDNode<"M68kISD::OR",   MxSDT_BiArithCCROut, [SDNPCommutative]>;
-def MxXor  : SDNode<"M68kISD::XOR",  MxSDT_BiArithCCROut, [SDNPCommutative]>;
-def MxAnd  : SDNode<"M68kISD::AND",  MxSDT_BiArithCCROut, [SDNPCommutative]>;
+def MxAdd  : SDNode<"M68kISD::ADD",  MxSDT_BiArithCCROut, [SDNPCommutative, SDNPOutGlue]>;
+def MxSub  : SDNode<"M68kISD::SUB",  MxSDT_BiArithCCROut, [SDNPOutGlue]>;
+def MxOr   : SDNode<"M68kISD::OR",   MxSDT_BiArithCCROut, [SDNPCommutative, SDNPOutGlue]>;
+def MxXor  : SDNode<"M68kISD::XOR",  MxSDT_BiArithCCROut, [SDNPCommutative, SDNPOutGlue]>;
+def MxAnd  : SDNode<"M68kISD::AND",  MxSDT_BiArithCCROut, [SDNPCommutative, SDNPOutGlue]>;
 
-def MxAddX : SDNode<"M68kISD::ADDX", MxSDT_BiArithCCRInOut>;
-def MxSubX : SDNode<"M68kISD::SUBX", MxSDT_BiArithCCRInOut>;
+def MxAddX : SDNode<"M68kISD::ADDX", MxSDT_BiArithCCRInOut, [SDNPInGlue, SDNPOutGlue]>;
+def MxSubX : SDNode<"M68kISD::SUBX", MxSDT_BiArithCCRInOut, [SDNPInGlue, SDNPOutGlue]>;
 
-def MxSMul : SDNode<"M68kISD::SMUL", MxSDT_BiArithCCROut, [SDNPCommutative]>;
-def MxUMul : SDNode<"M68kISD::UMUL", MxSDT_2BiArithCCROut, [SDNPCommutative]>;
+def MxSMul : SDNode<"M68kISD::SMUL", MxSDT_BiArithCCROut, [SDNPCommutative, SDNPOutGlue]>;
+def MxUMul : SDNode<"M68kISD::UMUL", MxSDT_2BiArithCCROut, [SDNPCommutative, SDNPOutGlue]>;
 
-def MxCmp     : SDNode<"M68kISD::CMP", MxSDT_CmpTest>;
-def MxBt      : SDNode<"M68kISD::BT",  MxSDT_CmpTest>;
+def MxCmp     : SDNode<"M68kISD::CMP", MxSDT_CmpTest, [SDNPOutGlue]>;
+def MxBt      : SDNode<"M68kISD::BT",  MxSDT_CmpTest, [SDNPOutGlue]>;
 
-def MxCmov    : SDNode<"M68kISD::CMOV",        MxSDT_Cmov>;
-def MxBrCond  : SDNode<"M68kISD::BRCOND",      MxSDT_BrCond, [SDNPHasChain]>;
-def MxSetCC   : SDNode<"M68kISD::SETCC",       MxSDT_SetCC>;
-def MxSetCC_C : SDNode<"M68kISD::SETCC_CARRY", MxSDT_SetCC_C>;
+def MxCmov    : SDNode<"M68kISD::CMOV",        MxSDT_Cmov, [SDNPInGlue]>;
+def MxBrCond  : SDNode<"M68kISD::BRCOND",      MxSDT_BrCond, [SDNPHasChain, SDNPInGlue]>;
+def MxSetCC   : SDNode<"M68kISD::SETCC",       MxSDT_SetCC, [SDNPInGlue]>;
+def MxSetCC_C : SDNode<"M68kISD::SETCC_CARRY", MxSDT_SetCC_C, [SDNPInGlue]>;
 
 
 def MxSegAlloca : SDNode<"M68kISD::SEG_ALLOCA", MxSDT_SEG_ALLOCA,

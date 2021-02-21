@@ -90,13 +90,13 @@ class MxSccEncoding<MxEncEA EA, MxEncExt EXT, MxBead4Bits CC>
 let Uses = [CCR] in {
 class MxSccR<string CC>
     : MxInst<(outs MxDRD8:$dst), (ins), "s"#CC#"\t$dst",
-      [(set i8:$dst, (MxSetCC !cast<PatLeaf>("MxCOND"#CC), CCR))],
+      [(set i8:$dst, (MxSetCC !cast<PatLeaf>("MxCOND"#CC)))],
       MxSccEncoding<MxEncEAd_0, MxExtEmpty, !cast<MxBead4Bits>("MxCC"#CC)>>;
 
 class MxSccM<string CC, MxOperand MEMOpd, ComplexPattern MEMPat,
              MxEncEA EA, MxEncExt EXT>
     : MxInst<(outs), (ins MEMOpd:$dst), "s"#CC#"\t$dst",
-      [(store (MxSetCC !cast<PatLeaf>("MxCOND"#CC), CCR), MEMPat:$dst)],
+      [(store (MxSetCC !cast<PatLeaf>("MxCOND"#CC)), MEMPat:$dst)],
       MxSccEncoding<EA, EXT, !cast<MxBead4Bits>("MxCC"#CC)>>;
 }
 
@@ -162,7 +162,7 @@ def B#cc#"16"
 
 foreach cc = [ "cc", "ls", "lt", "eq", "mi", "ne", "ge",
                "cs", "pl", "gt", "hi", "vc", "le", "vs"] in {
-def : Pat<(MxBrCond bb:$target, !cast<PatLeaf>("MxCOND"#cc), CCR),
+def : Pat<(MxBrCond bb:$target, !cast<PatLeaf>("MxCOND"#cc)),
           (!cast<Instruction>("B"#cc#"8") MxBrTarget8:$target)>;
 }
 
@@ -282,40 +282,40 @@ let Uses = [CCR], Defs = [CCR], isPseudo = 1 in {
 // However, Pat<> can't replicate the destination reg into the inputs of the
 // result.
 def SETCS_C8d : MxPseudo<(outs MxDRD8:$dst), (ins),
-                 [(set MxDRD8:$dst, (MxSetCC_C MxCONDcs, CCR))]>;
+                 [(set MxDRD8:$dst, (MxSetCC_C MxCONDcs))]>;
 def SETCS_C16d : MxPseudo<(outs MxDRD16:$dst), (ins),
-                 [(set MxDRD16:$dst, (MxSetCC_C MxCONDcs, CCR))]>;
+                 [(set MxDRD16:$dst, (MxSetCC_C MxCONDcs))]>;
 def SETCS_C32d : MxPseudo<(outs MxXRD32:$dst), (ins),
-                 [(set MxXRD32:$dst, (MxSetCC_C MxCONDcs, CCR))]>;
+                 [(set MxXRD32:$dst, (MxSetCC_C MxCONDcs))]>;
 } // Uses = [CCR], Defs = [CCR], isPseudo = 1
 
 
-def : Pat<(i16 (anyext (i8 (MxSetCC_C MxCONDcs, CCR)))), (SETCS_C16d)>;
-def : Pat<(i32 (anyext (i8 (MxSetCC_C MxCONDcs, CCR)))), (SETCS_C32d)>;
+def : Pat<(i16 (anyext (i8 (MxSetCC_C MxCONDcs)))), (SETCS_C16d)>;
+def : Pat<(i32 (anyext (i8 (MxSetCC_C MxCONDcs)))), (SETCS_C32d)>;
 
-def : Pat<(i16 (sext (i8 (MxSetCC_C MxCONDcs, CCR)))), (SETCS_C16d)>;
-def : Pat<(i32 (sext (i8 (MxSetCC_C MxCONDcs, CCR)))), (SETCS_C32d)>;
+def : Pat<(i16 (sext (i8 (MxSetCC_C MxCONDcs)))), (SETCS_C16d)>;
+def : Pat<(i32 (sext (i8 (MxSetCC_C MxCONDcs)))), (SETCS_C32d)>;
 
 // We canonicalize 'scs' to "(and (subx reg,reg), 1)" on the hope that the and
 // will be eliminated and that the subx can be extended up to a wider type.  When
 // this happens, it is great.  However, if we are left with an 8-bit subx and an
 // and, we might as well just match it as a setb.
-def : Pat<(and (i8 (MxSetCC_C MxCONDcs, CCR)), 1), (SETd8cs)>;
+def : Pat<(and (i8 (MxSetCC_C MxCONDcs)), 1), (SETd8cs)>;
 
 // (add OP, SETB) -> (addx OP, (move 0))
-def : Pat<(add (and (i8 (MxSetCC_C MxCONDcs, CCR)), 1), MxDRD8:$op),
+def : Pat<(add (and (i8 (MxSetCC_C MxCONDcs)), 1), MxDRD8:$op),
           (ADDX8dd MxDRD8:$op, (MOV8di 0))>;
-def : Pat<(add (and (i32 (MxSetCC_C MxCONDcs, CCR)), 1), MxXRD32:$op),
+def : Pat<(add (and (i32 (MxSetCC_C MxCONDcs)), 1), MxXRD32:$op),
           (ADDX32dd MxDRD32:$op, (MOV32ri 0))>;
 
 // (sub OP, SETB) -> (subx OP, (move 0))
-def : Pat<(sub MxDRD8:$op, (and (i8 (MxSetCC_C MxCONDcs, CCR)), 1)),
+def : Pat<(sub MxDRD8:$op, (and (i8 (MxSetCC_C MxCONDcs)), 1)),
           (SUBX8dd MxDRD8:$op, (MOV8di 0))>;
-def : Pat<(sub MxXRD32:$op, (and (i32 (MxSetCC_C MxCONDcs, CCR)), 1)),
+def : Pat<(sub MxXRD32:$op, (and (i32 (MxSetCC_C MxCONDcs)), 1)),
           (SUBX32dd MxDRD32:$op, (MOV32ri 0))>;
 
 // (sub OP, SETCC_CARRY) -> (addx OP, (move 0))
-def : Pat<(sub MxDRD8:$op, (i8 (MxSetCC_C MxCONDcs, CCR))),
+def : Pat<(sub MxDRD8:$op, (i8 (MxSetCC_C MxCONDcs))),
           (ADDX8dd MxDRD8:$op, (MOV8di 0))>;
-def : Pat<(sub MxXRD32:$op, (i32 (MxSetCC_C MxCONDcs, CCR))),
+def : Pat<(sub MxXRD32:$op, (i32 (MxSetCC_C MxCONDcs))),
           (ADDX32dd MxDRD32:$op, (MOV32ri 0))>;

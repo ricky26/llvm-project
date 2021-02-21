@@ -77,7 +77,7 @@ defm SP : MxAddressRegister<7, "sp", ["usp", "ssp", "isp", "a7"]>;
 class MxPseudoReg<string N, list<Register> SUBREGS = [], list<SubRegIndex> SUBIDX = []>
     : MxReg<N, 0, SUBREGS, SUBIDX>;
 
-def SR  : MxPseudoReg<"sr", [], []>;
+def SR  : MxPseudoReg<"sr">;
 let Aliases = [SR] in
 def CCR : MxPseudoReg<"ccr">;
 
@@ -107,15 +107,6 @@ def XR16 : MxRegClass<[i16], 16, (add DR16, AR16)>;
 def XR32 : MxRegClass<[i32], 32, (add DR32, AR32)>;
 
 def SPC  : MxRegClass<[i32], 32, (add SP)>;
-
-let CopyCost = -1 in {
-  def CCRC : MxRegClass<[i8],  16, (add CCR)>;
-  def SRC  : MxRegClass<[i16], 16, (add SR)>;
-}
-
-let isAllocatable = 0 in {
-  def PCC  : MxRegClass<[i32], 32, (add PC)>;
-}
 
 // Register used with tail call
 def DR16_TC : MxRegClass<[i16], 16, (add D0, D1)>;
