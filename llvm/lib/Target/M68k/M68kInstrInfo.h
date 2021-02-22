@@ -292,6 +292,12 @@ public:
 
   bool isRegisterOperandPCRel(const MachineOperand &MO) const override;
 
+  MachineInstr *createPHISourceCopy(MachineBasicBlock &MBB,
+                                    MachineBasicBlock::iterator InsPt,
+                                    const DebugLoc &DL, Register Src,
+                                    unsigned SrcSubReg,
+                                    Register Dst) const override;
+
   /// Add appropriate SExt nodes
   void AddSExt(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
                DebugLoc DL, unsigned Reg, MVT From, MVT To) const;

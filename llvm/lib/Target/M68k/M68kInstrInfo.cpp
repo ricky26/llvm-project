@@ -660,6 +660,24 @@ bool M68kInstrInfo::isRegisterOperandPCRel(const MachineOperand &MO) const {
   return true;
 }
 
+MachineInstr* M68kInstrInfo::createPHISourceCopy(MachineBasicBlock &MBB,
+                                                 MachineBasicBlock::iterator InsPt,
+                                                 const DebugLoc &DL, Register Src,
+                                                 unsigned SrcSubReg,
+                                                 Register Dst) const {
+  // Copies trash CCR, so if we're inserting this before a conditional branch,
+  // we need to back up to before the CCR is used.
+  if (InsPt != MBB.end() && InsPt->isBranch() && InsPt->readsRegister(M68k::CCR)) {
+    while (InsPt != MBB.begin()) {
+      --InsPt;
+      if (InsPt->definesRegister(M68k::CCR))
+        break;
+    }
+  }
+
+  return M68kGenInstrInfo::createPHISourceCopy(MBB, InsPt, DL, Src, SrcSubReg, Dst);
+}
+
 void M68kInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                 MachineBasicBlock::iterator MI,
                                 const DebugLoc &DL, MCRegister DstReg,
