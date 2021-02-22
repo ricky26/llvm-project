@@ -811,6 +811,14 @@ void M68kOperand::print(raw_ostream &OS) const {
     OS << "expression " << Expr->getKind();
     break;
 
+  case Kind_AddrImm:
+    OS << "addr imm " << Imm;
+    break;
+
+  case Kind_AddrExpr:
+    OS << "addr expr " << Expr->getKind();
+    break;
+
   case Kind_ARI:
     OS << "(" << Mem.RegNo << ")";
     break;
