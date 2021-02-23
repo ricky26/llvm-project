@@ -1619,7 +1619,7 @@ static SDValue getBitTestCondition(SDValue Src, SDValue BitNo, ISD::CondCode CC,
   SDValue BT = DAG.getNode(M68kISD::BT, DL, MVT::Glue, Src, BitNo);
 
   // NOTE BTST sets CCR.Z flag
-  M68k::CondCode Cond = CC == ISD::SETEQ ? M68k::COND_NE : M68k::COND_EQ;
+  M68k::CondCode Cond = CC == ISD::SETEQ ? M68k::COND_EQ : M68k::COND_NE;
   return DAG.getNode(M68kISD::SETCC, DL, DAG.getVTList(MVT::i8, MVT::Glue),
                      DAG.getConstant(Cond, DL, MVT::i8),
                      BT);
