@@ -1,4 +1,4 @@
-; RUN: llvm-mc -triple m68k -show-encoding -motorola-integers %s | FileCheck %s
+; RUN: not llvm-mc -triple m68k -show-encoding -motorola-integers %s --show-inst-operands 2>&1 | FileCheck %s
 
 ; At the moment, all encoding tests for M68k live in llvm/test/CodeGen/M68k/.
 ; This is the first test included as part of the AsmMatcher and lacks encoding checks.
@@ -7,6 +7,14 @@
 ; For more information and status updates see bug #49865.
 
 .global ext_fn
+
+; These checks have to appear first since they are printed during parsing, not
+; at the end like the others. They are printed as info because the instructions
+; don't (yet) support this operand format.
+; CHECK: 'move.l', %6, ([50,%6],%7.4*2,20)
+move.l %a0, ([50, %a0], %a1.L * 2, 20)
+; CHECK: 'move.l', %6, ([50,%6,%7.4*2],20)
+move.l %a0, ([50, %a0, %a1.L * 2], 20)
 
 ; CHECK: move.l %a1, %a0
 move.l %a1, %a0
@@ -50,3 +58,10 @@ rts
 movem.l %d0-%d6/%a0, (%sp)
 ; CHECK: movem.l (10,%sp), %d0-%d6/%a0
 movem.l (10,%sp), %d0-%d6/%a0
+; CHECK: move.l (%a0), $100
+move.l (%a0), ($100).L
+
+; TODO: the size & scale are not preserved here because they are not supported
+; at codegen time (yet).
+; CHECK: move.l %d0, (0,%a0,%a1)
+move.l %d0, (%a0, %a1.L * 2)
