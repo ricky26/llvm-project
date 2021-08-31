@@ -353,6 +353,10 @@ CodeGenRegBank &CodeGenTarget::getRegBank() const {
   return *RegBank;
 }
 
+StringRef CodeGenTarget::getPreDecodeMethod() const {
+  return TargetRec->getValueAsString("PreDecodeMethod");
+}
+
 Optional<CodeGenRegisterClass *>
 CodeGenTarget::getSuperRegForSubReg(const ValueTypeByHwMode &ValueTy,
                                     CodeGenRegBank &RegBank,

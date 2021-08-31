@@ -107,6 +107,8 @@ public:
   /// getRegBank - Return the register bank description.
   CodeGenRegBank &getRegBank() const;
 
+  StringRef getPreDecodeMethod() const;
+
   /// Return the largest register class on \p RegBank which supports \p Ty and
   /// covers \p SubIdx if it exists.
   Optional<CodeGenRegisterClass *>

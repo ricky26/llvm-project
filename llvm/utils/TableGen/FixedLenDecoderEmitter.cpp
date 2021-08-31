@@ -966,12 +966,22 @@ emitDecoderFunction(formatted_raw_ostream &OS, DecoderSet &Decoders,
                     unsigned Indentation) const {
   // The decoder function is just a big switch statement based on the
   // input decoder index.
-  OS.indent(Indentation) << "template <typename InsnType>\n";
+  OS.indent(Indentation) << "template <typename InsnType, "
+                         << "typename StateType>\n";
   OS.indent(Indentation) << "static DecodeStatus decodeToMCInst(DecodeStatus S,"
     << " unsigned Idx, InsnType insn, MCInst &MI,\n";
   OS.indent(Indentation) << "                                   uint64_t "
-    << "Address, const void *Decoder, bool &DecodeComplete) {\n";
+    << "Address, StateType State, bool &DecodeComplete) {\n";
   Indentation += 2;
+
+  auto PreDecodeMethod = Target.getPreDecodeMethod();
+  if (!PreDecodeMethod.empty()) {
+    OS.indent(Indentation) << "if (" << PreDecodeMethod
+                           << "(MI, insn, Address, State)"
+                           << " == DecodeStatus::Fail)\n";
+    OS.indent(Indentation + 2) << "return DecodeStatus::Fail;\n";
+  }
+
   OS.indent(Indentation) << "DecodeComplete = true;\n";
   // TODO: When InsnType is large, using uint64_t limits all fields to 64 bits
   // It would be better for emitBinaryParser to use a 64-bit tmp whenever
@@ -1138,7 +1148,7 @@ void FilterChooser::emitBinaryParser(raw_ostream &o, unsigned &Indentation,
   if (Decoder != "") {
     OpHasCompleteDecoder = OpInfo.HasCompleteDecoder;
     o.indent(Indentation) << Emitter->GuardPrefix << Decoder
-      << "(MI, tmp, Address, Decoder)"
+      << "(MI, tmp, Address, State)"
       << Emitter->GuardPostfix
       << " { " << (OpHasCompleteDecoder ? "" : "DecodeComplete = false; ")
       << "return MCDisassembler::Fail; }\n";
@@ -2215,12 +2225,12 @@ static void emitInsertBits(formatted_raw_ostream &OS) {
 // emitDecodeInstruction - Emit the templated helper function
 // decodeInstruction().
 static void emitDecodeInstruction(formatted_raw_ostream &OS) {
-  OS << "template <typename InsnType>\n"
+  OS << "template <typename InsnType, typename StateType>\n"
      << "static DecodeStatus decodeInstruction(const uint8_t DecodeTable[], "
         "MCInst &MI,\n"
      << "                                      InsnType insn, uint64_t "
         "Address,\n"
-     << "                                      const void *DisAsm,\n"
+     << "                                      StateType State,\n"
      << "                                      const MCSubtargetInfo &STI) {\n"
      << "  const FeatureBitset &Bits = STI.getFeatureBits();\n"
      << "\n"
@@ -2322,7 +2332,8 @@ static void emitDecodeInstruction(formatted_raw_ostream &OS) {
      << "      MI.clear();\n"
      << "      MI.setOpcode(Opc);\n"
      << "      bool DecodeComplete;\n"
-     << "      S = decodeToMCInst(S, DecodeIdx, insn, MI, Address, DisAsm, "
+     << "      S = decodeToMCInst<InsnType, StateType>"
+        "(S, DecodeIdx, insn, MI, Address, State, "
         "DecodeComplete);\n"
      << "      assert(DecodeComplete);\n"
      << "\n"
@@ -2348,7 +2359,8 @@ static void emitDecodeInstruction(formatted_raw_ostream &OS) {
      << "      MCInst TmpMI;\n"
      << "      TmpMI.setOpcode(Opc);\n"
      << "      bool DecodeComplete;\n"
-     << "      S = decodeToMCInst(S, DecodeIdx, insn, TmpMI, Address, DisAsm, "
+     << "      S = decodeToMCInst<InsnType, StateType>"
+        "(S, DecodeIdx, insn, TmpMI, Address, State, "
         "DecodeComplete);\n"
      << "      LLVM_DEBUG(dbgs() << Loc << \": OPC_TryDecode: opcode \" << "
         "Opc\n"

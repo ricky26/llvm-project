@@ -1557,6 +1557,8 @@ class Target {
   // setting hasExtraDefRegAllocReq and hasExtraSrcRegAllocReq to 1
   // for all opcodes if this flag is set to 0.
   int AllowRegisterRenaming = 0;
+
+  string PreDecodeMethod = "";
 }
 
 //===----------------------------------------------------------------------===//
