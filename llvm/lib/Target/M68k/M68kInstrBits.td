@@ -98,3 +98,12 @@ def BTST8qi : MxBTST_MI<MxType8d, MxType8.QOp, MxType8.QPat,
                         MxEncEAq,   MxExtI16_0>;
 def BTST8ki : MxBTST_MI<MxType8d, MxType8.KOp, MxType8.KPat,
                         MxEncEAk,   MxExtBrief_0>;
+
+def BTST32i : MxInstTG<(outs), (ins Mxi8imm:$bitno, MxEA:$src),
+                       "btstq\t$bitno, $src",
+                       [(set CCR, (MxBt (i32 (MxLoadEA MxCP_EA:$src)), (i8 imm:$bitno)))]> {
+ bits<6> src;
+ let Inst = {0,0,0,0,1,0,0,0,0,0,?,?,?,?,?,?};
+ let Inst{5-0} = src;
+ let BriefDisp = 1;
+}
