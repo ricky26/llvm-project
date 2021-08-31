@@ -124,4 +124,5 @@ def M68k : Target {
   let InstructionSet = M68kInstrInfo;
   let AssemblyParsers = [M68kAsmParser];
   let AssemblyWriters = [M68kAsmWriter];
+  let PreDecodeMethod = "M68kInstructionDecoder::preDecode";
 }

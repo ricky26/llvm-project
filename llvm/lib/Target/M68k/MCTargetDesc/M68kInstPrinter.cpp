@@ -25,6 +25,7 @@
 
 #include "M68kInstPrinter.h"
 #include "M68kBaseInfo.h"
+#include "MCTargetDesc/M68kEAOperand.h"
 
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/MC/MCExpr.h"
@@ -54,21 +55,34 @@ void M68kInstPrinter::printInst(const MCInst *MI, uint64_t Address,
   printAnnotation(O, Annot);
 }
 
-void M68kInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
-                                   raw_ostream &O) {
-  const MCOperand &MO = MI->getOperand(OpNo);
+void M68kInstPrinter::printOperand(const MCOperand &MO, raw_ostream &O) {
   if (MO.isReg()) {
     printRegName(O, MO.getReg());
     return;
   }
 
   if (MO.isImm()) {
-    printImmediate(MI, OpNo, O);
+    printImmediate(MO, O);
     return;
   }
 
   assert(MO.isExpr() && "Unknown operand kind in printOperand");
   MO.getExpr()->print(O, &MAI);
+}
+
+void M68kInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
+                                   raw_ostream &O) {
+  const MCOperand &MO = MI->getOperand(OpNo);
+  printOperand(MO, O);
+}
+
+void M68kInstPrinter::printImmediate(const MCOperand &Op, raw_ostream &O) {
+  if (Op.isImm()) {
+    O << Op.getImm();
+    return;
+  }
+  assert(Op.isExpr() && "Unknown operand kind in printImm");
+  Op.getExpr()->print(O, &MAI);
 }
 
 void M68kInstPrinter::printImmediate(const MCInst *MI, unsigned opNum,
@@ -216,4 +230,66 @@ void M68kInstPrinter::printPCIMem(const MCInst *MI, uint64_t Address,
   O << ",%pc,";
   printOperand(MI, opNum + M68k::PCRelIndex, O);
   O << ')';
+}
+
+static inline bool isZero(const MCOperand &Op) {
+  if (Op.isExpr()) {
+    if (const MCConstantExpr *CE = dyn_cast<const MCConstantExpr>(Op.getExpr()))
+      return CE->getValue() == 0;
+  }
+
+  if (Op.isImm()) {
+    return Op.getImm() == 0;
+  }
+
+  return false;
+}
+
+void M68kInstPrinter::printEA(const MCInst *MI, unsigned opNum,
+                              raw_ostream &O) {
+  M68k::MCEAOperand MCOp;
+  if (!MCOp.parseInstruction(*MI, opNum))
+    llvm_unreachable("failed to load EA operand");
+
+  switch (MCOp.getMode()) {
+  case M68k::EAOperandMode::Address:
+    O << "(";
+    printImmediate(MCOp.OuterDisp, O);
+    O << ")";
+    break;
+
+  case M68k::EAOperandMode::Register:
+    O << "%" << getRegisterName(MCOp.OuterReg);
+    break;
+
+  case M68k::EAOperandMode::RegIndirect:
+    if (isZero(MCOp.OuterDisp))
+      O << "(%" << getRegisterName(MCOp.OuterReg) << ")";
+    else {
+      O << "(";
+      printImmediate(MCOp.OuterDisp, O);
+      O << ",%" << getRegisterName(MCOp.OuterReg) << ")";
+    }
+    break;
+
+  case M68k::EAOperandMode::RegPostIncrement:
+    O << "(%" << getRegisterName(MCOp.OuterReg) << ")+";
+    break;
+
+  case M68k::EAOperandMode::RegPreDecrement:
+    O << "-(%" << getRegisterName(MCOp.OuterReg) << ")";
+    break;
+
+  case M68k::EAOperandMode::RegIndex:
+    O << "(";
+
+    if (!isZero(MCOp.OuterDisp)) {
+      printImmediate(MCOp.OuterDisp, O);
+      O << ",";
+    }
+
+    O << "%" << getRegisterName(MCOp.OuterReg)
+      << ",%" << getRegisterName(MCOp.InnerReg) << ")";
+    break;
+  }
 }

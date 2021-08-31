@@ -8,6 +8,7 @@
 
 #include "M68kInstrInfo.h"
 #include "M68kRegisterInfo.h"
+#include "MCTargetDesc/M68kEAOperand.h"
 #include "TargetInfo/M68kTargetInfo.h"
 
 #include "llvm/MC/MCContext.h"
@@ -108,11 +109,12 @@ struct M68kMemOp {
   const MCExpr *InnerDisp;
   uint8_t Size : 4;
   uint8_t Scale : 4;
-  const MCExpr *Expr;
   uint16_t RegMask;
 
-  M68kMemOp() {}
-  M68kMemOp(Kind Op) : Op(Op) {}
+  M68kMemOp() : M68kMemOp(Kind::Addr) {}
+  M68kMemOp(Kind Op) : Op(Op), OuterReg(M68k::A0), InnerReg(M68k::A0),
+                       OuterDisp(nullptr), InnerDisp(nullptr),
+                       Size(1), Scale(1), RegMask(0) {}
 
   void print(raw_ostream &OS) const;
 };
@@ -214,6 +216,10 @@ public:
   // PCI
   bool isPCI() const;
   void addPCIOperands(MCInst &Inst, unsigned N) const;
+
+  // EA
+  bool isEA() const;
+  void addEAOperands(MCInst &Inst, unsigned N) const;
 };
 
 } // end anonymous namespace.
@@ -462,6 +468,50 @@ bool M68kOperand::isPCI() const {
 void M68kOperand::addPCIOperands(MCInst &Inst, unsigned N) const {
   M68kOperand::addExpr(Inst, MemOp.OuterDisp);
   Inst.addOperand(MCOperand::createReg(MemOp.InnerReg));
+}
+
+// EA
+bool M68kOperand::isEA() const {
+  return isMemOp() &&
+         MemOp.Op != M68kMemOp::Kind::RegMask;
+}
+void M68kOperand::addEAOperands(MCInst &Inst, unsigned N) const {
+  M68k::MCEAOperand MCOp;
+
+  MCOp.OuterDisp = MemOp.OuterDisp
+                   ? MCOperand::createExpr(MemOp.OuterDisp)
+                   : MCOperand::createImm(0);
+  MCOp.InnerDisp = MemOp.InnerDisp
+                   ? MCOperand::createExpr(MemOp.InnerDisp)
+                   : MCOperand::createImm(0);
+
+  switch (MemOp.Op) {
+  case M68kMemOp::Kind::Addr:
+    MCOp.setMode(M68k::EAOperandMode::Address);
+    break;
+  case M68kMemOp::Kind::Reg:
+    MCOp.setMode(M68k::EAOperandMode::Register);
+    break;
+  case M68kMemOp::Kind::RegIndirect:
+    MCOp.setMode(M68k::EAOperandMode::RegIndirect);
+    break;
+  case M68kMemOp::Kind::RegPostIncrement:
+    MCOp.setMode(M68k::EAOperandMode::RegPostIncrement);
+    break;
+  case M68kMemOp::Kind::RegPreDecrement:
+    MCOp.setMode(M68k::EAOperandMode::RegPreDecrement);
+    break;
+  case M68kMemOp::Kind::RegIndirectDisplacement:
+    MCOp.setMode(M68k::EAOperandMode::RegIndirect);
+    break;
+  case M68kMemOp::Kind::RegIndirectDisplacementIndex:
+    MCOp.setMode(M68k::EAOperandMode::RegIndex);
+    break;
+  case M68kMemOp::Kind::RegMask:
+    llvm_unreachable("register masks are not EA operands");
+  }
+
+  MCOp.addOperands(Inst);
 }
 
 static inline bool checkRegisterClass(unsigned RegNo, bool Data, bool Address,

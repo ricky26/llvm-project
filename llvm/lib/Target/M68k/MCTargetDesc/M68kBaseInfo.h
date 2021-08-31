@@ -46,6 +46,7 @@ enum { MemDisp = 0, MemBase = 1, MemIndex = 2, MemOuter = 3 };
 /// ([bd,PC],Xn,od)
 /// ([bd,PC,Xn],od)
 enum { PCRelDisp = 0, PCRelIndex = 1, PCRelOuter = 2 };
+
 } // namespace M68k
 
 namespace M68kBeads {
@@ -76,6 +77,20 @@ enum {
 /// This namespace holds all of the target specific flags that instruction info
 /// tracks.
 namespace M68kII {
+/// TSFlags fields
+enum {
+  /// This instruction uses the 8-bit displacement from the brief extension
+  /// word as an operand.
+  INST_BRIEF_DISP = 1 << 0,
+
+  /// Use the D/A & register bits from the brief word as a register
+  /// operand
+  INST_BRIEF_REG = 1 << 1,
+
+
+  INST_BRIEF_MASK = INST_BRIEF_DISP | INST_BRIEF_REG,
+};
+
 /// Target Operand Flag enum.
 enum TOF {
 

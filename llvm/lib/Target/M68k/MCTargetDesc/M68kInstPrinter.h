@@ -41,7 +41,9 @@ public:
   std::pair<const char *, uint64_t> getMnemonic(const MCInst *MI) override;
 
 private:
+  void printOperand(const MCOperand &Op, raw_ostream &O);
   void printOperand(const MCInst *MI, unsigned opNum, raw_ostream &O);
+  void printImmediate(const MCOperand &Op, raw_ostream &O);
   void printImmediate(const MCInst *MI, unsigned opNum, raw_ostream &O);
   /// Print register mask for MOVEM instruction in order D0-D7,A0-A7
   void printMoveMask(const MCInst *MI, unsigned opNum, raw_ostream &O);
@@ -58,6 +60,8 @@ private:
                    raw_ostream &O);
   void printPCIMem(const MCInst *MI, uint64_t Address, unsigned opNum,
                    raw_ostream &O);
+
+  void printEA(const MCInst *MI, unsigned opNum, raw_ostream &O);
 
   //===----------------------------------------------------------------------===//
   // Specializations

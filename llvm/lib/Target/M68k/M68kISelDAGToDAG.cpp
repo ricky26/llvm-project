@@ -224,6 +224,9 @@ private:
   bool SelectAL(SDNode *Parent, SDValue N, SDValue &Sym);
   bool SelectPCD(SDNode *Parent, SDValue N, SDValue &Imm);
   bool SelectPCI(SDNode *Parent, SDValue N, SDValue &Imm, SDValue &Index);
+  bool selectEA(SDValue N, SDValue &Flags,
+                SDValue &OuterReg, SDValue &InnerReg,
+                SDValue &OuterDisp, SDValue &InnerDisp);
 
   // If Address Mode represents Frame Index store FI in Disp and
   // Displacement bit size in Base. These values are read symmetrically by

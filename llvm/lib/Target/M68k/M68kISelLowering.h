@@ -94,6 +94,10 @@ enum NodeType {
   // segmented stacks. Check if the current stacklet has enough space, and
   // falls back to heap allocation if not.
   SEG_ALLOCA,
+
+  // Used when an EA operand is accessed
+  LOAD_EA,
+  STORE_EA,
 };
 } // namespace M68kISD
 

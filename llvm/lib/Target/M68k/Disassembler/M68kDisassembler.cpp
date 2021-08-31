@@ -15,11 +15,13 @@
 #include "M68kSubtarget.h"
 #include "MCTargetDesc/M68kMCCodeEmitter.h"
 #include "MCTargetDesc/M68kMCTargetDesc.h"
+#include "MCTargetDesc/M68kEAOperand.h"
 #include "TargetInfo/M68kTargetInfo.h"
 
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
+#include "llvm/MC/MCFixedLenDisassembler.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/Support/TargetRegistry.h"
 
@@ -122,6 +124,8 @@ public:
   }
   virtual ~M68kDisassembler() {}
 
+  inline const MCInstrInfo &getInstrInfo() const;
+
   void buildBeadTable();
   DecodeStatus getInstruction(MCInst &Instr, uint64_t &Size,
                               ArrayRef<uint8_t> Bytes, uint64_t Address,
@@ -130,10 +134,34 @@ public:
                  M68kInstructionReader &Reader, unsigned &Scratch) const;
   void decodeImm(MCInst &Instr, unsigned int Bead,
                  M68kInstructionReader &Reader, unsigned &Scratch) const;
+
+
   unsigned int getRegOperandIndex(MCInst &Instr, unsigned int Bead) const;
   unsigned int getImmOperandIndex(MCInst &Instr, unsigned int Bead) const;
 };
+
+class M68kInstructionDecoder {
+public:
+  const M68kDisassembler &Disassembler;
+  ArrayRef<uint8_t> Buffer;
+  unsigned Offset;
+
+  M68kInstructionDecoder(const M68kDisassembler &D)
+      : Disassembler(D), Offset(0) {}
+
+  inline bool TakeWord(uint16_t &Value);
+
+  static MCDisassembler::DecodeStatus
+  preDecode(MCInst &Instr, uint16_t Bits, uint64_t Address,
+            M68kInstructionDecoder &Decoder);
+
+  static MCDisassembler::DecodeStatus
+  decodeEA(MCInst &Instr, uint16_t Bits, uint64_t Address,
+           M68kInstructionDecoder& Decoder);
+};
 } // namespace
+
+#include "M68kGenDisassemblerTables.inc"
 
 static unsigned RegisterDecode[] = {
     M68k::A0, M68k::A1, M68k::A2, M68k::A3, M68k::A4, M68k::A5,
@@ -288,6 +316,10 @@ void M68kInstructionLookupBuilder::addBits(unsigned N, uint64_t Bits) {
 }
 
 void M68kInstructionLookupBuilder::skipBits(unsigned N) { NumWritten += N; }
+
+inline const MCInstrInfo &M68kDisassembler::getInstrInfo() const {
+  return *MCII;
+}
 
 // This is a bit of a hack: we can't generate this table at table-gen time
 // because some of the definitions are in our platform.
@@ -454,10 +486,110 @@ void M68kDisassembler::decodeImm(MCInst &Instr, unsigned Bead,
   Scratch = (Scratch << NumToRead) | Reader.readBits(NumToRead);
 }
 
+bool M68kInstructionDecoder::TakeWord(uint16_t &Value) {
+  if (Offset + 1 >= Buffer.size()) {
+    errs() << "error: unexpected end of file fetching extension words\n";
+    return false;
+  }
+
+  Value = support::endian::read<uint16_t>(
+      Buffer.begin() + Offset, support::big);
+  Offset += 2;
+  return true;
+}
+
+MCDisassembler::DecodeStatus
+M68kInstructionDecoder::preDecode(MCInst &Instr, uint16_t Bits, uint64_t Address,
+                                  M68kInstructionDecoder& Decoder) {
+  const auto &MCII = Decoder.Disassembler.getInstrInfo();
+  const auto &InstrInfo = MCII.get(Instr.getOpcode());
+
+  uint16_t BriefWord;
+  if ((InstrInfo.TSFlags & M68kII::INST_BRIEF_MASK)
+      && !Decoder.TakeWord(BriefWord)) {
+    errs() << "error: missing brief extension word";
+    return DecodeStatus::Fail;
+  }
+
+  if (InstrInfo.TSFlags & M68kII::INST_BRIEF_DISP) {
+    Instr.addOperand(MCOperand::createImm(BriefWord & 0xFF));
+  }
+
+  if (InstrInfo.TSFlags & M68kII::INST_BRIEF_REG) {
+    Instr.addOperand(MCOperand::createReg(RegisterDecode[BriefWord >> 12]));
+  }
+
+  return DecodeStatus::Success;
+}
+
+MCDisassembler::DecodeStatus
+M68kInstructionDecoder::decodeEA(MCInst &Instr, uint16_t Bits, uint64_t Address,
+                                 M68kInstructionDecoder& Decoder) {
+  unsigned Mode = (Bits >> 3);
+  unsigned Reg = (Bits & 7);
+  M68k::MCEAOperand EAOp;
+  uint16_t Tmp;
+
+  switch (Mode) {
+  case 0:
+    // Data Register Direct
+    EAOp = M68k::MCEAOperand::createRegister(RegisterDecode[Reg + 8]);
+    break;
+
+  case 1:
+    // Address Register Direct
+    EAOp = M68k::MCEAOperand::createRegister(RegisterDecode[Reg]);
+    break;
+
+  case 2:
+    // Address Register Indirect
+    EAOp = M68k::MCEAOperand::createRegisterIndirect(RegisterDecode[Reg]);
+    break;
+
+  case 3:
+    // Address Register Post-Increment
+    EAOp = M68k::MCEAOperand::createRegPostIncrement(RegisterDecode[Reg]);
+    break;
+
+  case 4:
+    // Address Register Pre-Decrement
+    EAOp = M68k::MCEAOperand::createRegPreDecrement(RegisterDecode[Reg]);
+    break;
+
+  case 5:
+    // Address Register Indirect with Displacement
+    if (!Decoder.TakeWord(Tmp))
+      return MCDisassembler::Fail;
+    EAOp = M68k::MCEAOperand::createRegisterIndirect(
+        RegisterDecode[Reg], MCOperand::createImm(Tmp));
+    break;
+
+  default:
+    llvm_unreachable("unhandled EA mode");
+  }
+
+  EAOp.addOperands(Instr);
+  return MCDisassembler::Success;
+}
+
 DecodeStatus M68kDisassembler::getInstruction(MCInst &Instr, uint64_t &Size,
                                               ArrayRef<uint8_t> Bytes,
                                               uint64_t Address,
                                               raw_ostream &CStream) const {
+  // First try TableGen based disassembler.
+  M68kInstructionDecoder Decoder(*this);
+  Decoder.Buffer = Bytes;
+
+  uint16_t InstWord;
+  if (Decoder.TakeWord(InstWord)) {
+    DecodeStatus Result = decodeInstruction<uint16_t, M68kInstructionDecoder &>(
+        DecoderTable16, Instr, InstWord, Address, Decoder, STI);
+    if (Result == Success) {
+      Size = Decoder.Offset;
+      return Success;
+    }
+  }
+
   // Read and shift the input (fetch as much as we can for now).
   auto Buffer = M68kInstructionBuffer::fill(Bytes);
   if (Buffer.size() == 0)

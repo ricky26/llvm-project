@@ -69,6 +69,12 @@ def MxSDT_CmpTest : SDTypeProfile<1, 2, [
    /* Ops */ SDTCisSameAs<1, 2>
 ]>;
 
+def MxSDT_Bt : SDTypeProfile<1, 2, [
+   /* CCR */ SDTCisVT<0, i8>,
+   /* Src */ SDTCisInt<1>,
+   /* Bit */ SDTCisInt<2>,
+]>;
+
 def MxSDT_Cmov : SDTypeProfile<1, 4, [
   /*  ARG */ SDTCisSameAs<0, 1>,
   /*  ARG */ SDTCisSameAs<1, 2>,
@@ -98,6 +104,16 @@ def MxSDT_SetCC_C : SDTypeProfile<1, 2, [
 def MxSDT_SEG_ALLOCA : SDTypeProfile<1, 1,[
   /*  MEM */ SDTCisVT<0, iPTR>,
   /* SIZE */ SDTCisVT<1, iPTR>
+]>;
+
+def MxSDT_LoadEA : SDTypeProfile<1, 1, [
+  /* Value */ SDTCisInt<0>,
+  /* Src   */ SDTCisVT<1, OtherVT>
+]>;
+
+def MxSDT_StoreEA : SDTypeProfile<0, 2, [
+  /* Dest  */ SDTCisVT<0, OtherVT>,
+  /* Value */ SDTCisInt<1>
 ]>;
 
 
@@ -137,13 +153,15 @@ def MxSMul : SDNode<"M68kISD::SMUL", MxSDT_BiArithCCROut, [SDNPCommutative]>;
 def MxUMul : SDNode<"M68kISD::UMUL", MxSDT_2BiArithCCROut, [SDNPCommutative]>;
 
 def MxCmp     : SDNode<"M68kISD::CMP", MxSDT_CmpTest>;
-def MxBt      : SDNode<"M68kISD::BT",  MxSDT_CmpTest>;
+def MxBt      : SDNode<"M68kISD::BT",  MxSDT_Bt>;
 
 def MxCmov    : SDNode<"M68kISD::CMOV",        MxSDT_Cmov>;
 def MxBrCond  : SDNode<"M68kISD::BRCOND",      MxSDT_BrCond, [SDNPHasChain]>;
 def MxSetCC   : SDNode<"M68kISD::SETCC",       MxSDT_SetCC>;
 def MxSetCC_C : SDNode<"M68kISD::SETCC_CARRY", MxSDT_SetCC_C>;
 
+def MxLoadEA  : SDNode<"M68kISD::LOAD_EA", MxSDT_LoadEA>;
+def MxStoreEA : SDNode<"M68kISD::STORE_EA", MxSDT_StoreEA>;
 
 def MxSegAlloca : SDNode<"M68kISD::SEG_ALLOCA", MxSDT_SEG_ALLOCA,
                          [SDNPHasChain]>;
@@ -189,6 +207,20 @@ class MxOperand<ValueType vt, MxSize size, string letter, RegisterClass rc, dag 
   MxSize Size = size;
   RegisterClass RC = rc;
   dag Pat = pat;
+}
+
+def MxEAAsmOperandClass : AsmOperandClass {
+  let Name = "EA";
+  let ParserMethod = "parseMemOp";
+}
+
+def MxEA : Operand<OtherVT> {
+  let PrintMethod = "printEA";
+  let ParserMatchClass = MxEAAsmOperandClass;
+  let OperandType = "OPERAND_MEMORY";
+  let MIOperandInfo = (ops i32imm, XR32, XR32, i32imm, i32imm);
+  let EncoderMethod = "encodeEA";
+  let DecoderMethod = "M68kInstructionDecoder::decodeEA";
 }
 
 class MxRegOp<ValueType vt,
@@ -488,6 +520,7 @@ def MxCP_PCD   : ComplexPattern<iPTR, 1, "SelectPCD",
 def MxCP_PCI   : ComplexPattern<iPTR, 2, "SelectPCI",
                                 [add, sub, mul, or, shl], [SDNPWantParent]>;
 
+def MxCP_EA : ComplexPattern<OtherVT, 5, "selectEA", [], []>;
 
 //===----------------------------------------------------------------------===//
 // Pattern Fragments

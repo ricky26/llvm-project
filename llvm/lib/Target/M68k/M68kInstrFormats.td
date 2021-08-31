@@ -332,6 +332,38 @@ def MxEncSize16 : MxEncSize<0b01>;
 def MxEncSize32 : MxEncSize<0b10>;
 def MxEncSize64 : MxEncSize<0b11>;
 
+class MxInstBase<dag outs, dag ins,
+                 string asmStr = "",
+                 list<dag> pattern = [],
+                 InstrItinClass itin = NoItinerary>
+    : Instruction {
+  let Namespace      = "M68k";
+  let OutOperandList = outs;
+  let InOperandList  = ins;
+  let AsmString      = asmStr;
+  let Pattern        = pattern;
+  let Itinerary      = itin;
+
+  let UseLogicalOperandMappings = 1;
+}
+
+class MxInstTG<dag outs, dag ins,
+               string asmStr = "",
+               list<dag> pattern = [],
+               bits<16> inst = 0,
+               InstrItinClass itin = NoItinerary>
+    : MxInstBase<outs, ins, asmStr, pattern, itin> {
+  field bits<16> Inst = inst;
+  field bits<16> SoftFail = 0;
+  let Size = 2;
+
+  bit BriefDisp = 0;
+  bit BriefReg = 0;
+
+  let TSFlags{0} = BriefDisp;
+  let TSFlags{1} = BriefReg;
+}
+
 // M68k INSTRUCTION. Most instructions specify the location of an operand by
 // using the effective address field in the operation word. The effective address
 // is composed of two 3-bit fields: the mode field and the register field. The
@@ -347,21 +379,12 @@ class MxInst<dag outs, dag ins,
              list<dag> pattern = [],
              MxEncoding beads = MxEncEmpty,
              InstrItinClass itin = NoItinerary>
-    : Instruction {
-  let Namespace      = "M68k";
-  let OutOperandList = outs;
-  let InOperandList  = ins;
-  let AsmString      = asmStr;
-  let Pattern        = pattern;
-  let Itinerary      = itin;
-
+    : MxInstBase<outs, ins, asmStr, pattern, itin> {
   // Byte stream
   field bits<192> Beads = beads.Value;
 
   // Number of bytes
   let Size = 0;
-
-  let UseLogicalOperandMappings = 1;
 }
 
 // M68k PSEUDO INSTRUCTION

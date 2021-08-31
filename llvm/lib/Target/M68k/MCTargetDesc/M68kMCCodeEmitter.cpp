@@ -15,6 +15,7 @@
 #include "MCTargetDesc/M68kBaseInfo.h"
 #include "MCTargetDesc/M68kFixupKinds.h"
 #include "MCTargetDesc/M68kMCTargetDesc.h"
+#include "MCTargetDesc/M68kEAOperand.h"
 
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
@@ -38,6 +39,10 @@ class M68kMCCodeEmitter : public MCCodeEmitter {
   void operator=(const M68kMCCodeEmitter &) = delete;
   const MCInstrInfo &MCII;
   MCContext &Ctx;
+
+  // HACK: this needs plumbing in correctly, but works for a proof of
+  // concept.
+  mutable std::vector<uint16_t> ExtraWords;
 
 public:
   M68kMCCodeEmitter(const MCInstrInfo &mcii, MCContext &ctx)
@@ -65,12 +70,24 @@ public:
                      SmallVectorImpl<MCFixup> &Fixups,
                      const MCSubtargetInfo &STI) const;
 
+  unsigned encodeEA(const MCInst &MI, unsigned OpNo,
+                    SmallVectorImpl<MCFixup> &Fixups,
+                    const MCSubtargetInfo &STI) const;
+
   void encodeInstruction(const MCInst &MI, raw_ostream &OS,
                          SmallVectorImpl<MCFixup> &Fixups,
                          const MCSubtargetInfo &STI) const override;
+
+  // Generated function for emitting code for tablegen compatible
+  // instructions.
+  uint64_t getBinaryCodeForInstr(const MCInst &MI,
+                                 SmallVectorImpl<MCFixup> &Fixups,
+                                 const MCSubtargetInfo &STI) const;
 };
 
 } // end anonymous namespace
+
+#include "M68kGenMCCodeEmitter.inc"
 
 unsigned M68kMCCodeEmitter::encodeBits(unsigned ThisByte, uint8_t Bead,
                                        const MCInst &MI,
@@ -310,6 +327,87 @@ unsigned M68kMCCodeEmitter::encodeImm(unsigned ThisByte, uint8_t Bead,
   return EmitConstant(Imm & ((1ULL << Size) - 1), Size, Pad, Buffer, Offset);
 }
 
+unsigned M68kMCCodeEmitter::encodeEA(const MCInst &MI, unsigned OpNo,
+                                     SmallVectorImpl<MCFixup> &Fixups,
+                                     const MCSubtargetInfo &STI) const {
+  const auto *RI = Ctx.getRegisterInfo();
+
+  M68k::MCEAOperand MCOp;
+  if (!MCOp.parseInstruction(MI, OpNo)) {
+    llvm_unreachable("failed to parse EA operands");
+  }
+
+  switch (MCOp.getMode()) {
+  case M68k::EAOperandMode::Address: {
+    bool HasImm = false;
+    int64_t ImmValue = 0;
+
+    if (MCOp.OuterDisp.isImm()) {
+      HasImm = true;
+      ImmValue = MCOp.OuterDisp.getImm();
+    } else if (MCOp.OuterDisp.isExpr()) {
+      const auto *ConstExpr = cast<MCConstantExpr>(MCOp.OuterDisp.getExpr());
+      if (ConstExpr != nullptr) {
+        HasImm = true;
+        ImmValue = ConstExpr->getValue();
+      }
+    }
+
+    int16_t ShortImm = ImmValue;
+    if (HasImm && (ShortImm == ImmValue)) {
+      // Add a single extension word.
+      ExtraWords.push_back(ShortImm);
+      return 0x38;
+    }
+
+    // Expand to a full 32-bit absolute address.
+    ExtraWords.push_back(ImmValue >> 16);
+    ExtraWords.push_back(ImmValue);
+    return 0x39;
+  }
+
+  case M68k::EAOperandMode::Register:
+    if ((MCOp.OuterReg >= M68k::D0) && (MCOp.OuterReg <= M68k::D0))
+      return RI->getEncodingValue(MCOp.OuterReg);
+
+    if ((MCOp.OuterReg >= M68k::A0) && (MCOp.OuterReg <= M68k::A6))
+      return 8 | RI->getEncodingValue(MCOp.OuterReg);
+
+    if (MCOp.OuterReg == M68k::SP)
+      return 8 | RI->getEncodingValue(MCOp.OuterReg);
+
+    llvm_unreachable("register EA for invalid register");
+
+  case M68k::EAOperandMode::RegIndirect: {
+    int64_t ImmValue = 0;
+
+    if (MCOp.OuterDisp.isImm()) {
+      ImmValue = MCOp.OuterDisp.getImm();
+    } else if (MCOp.OuterDisp.isExpr()) {
+      const auto *ConstExpr = cast<MCConstantExpr>(MCOp.OuterDisp.getExpr());
+      if (ConstExpr != nullptr) {
+        ImmValue = ConstExpr->getValue();
+      }
+    }
+
+    ExtraWords.push_back(ImmValue);
+    return 0x28 | RI->getEncodingValue(MCOp.OuterReg);
+  }
+
+  case M68k::EAOperandMode::RegPostIncrement:
+    return 0x18 | RI->getEncodingValue(MCOp.OuterReg);
+
+  case M68k::EAOperandMode::RegPreDecrement:
+    return 0x20 | RI->getEncodingValue(MCOp.OuterReg);
+
+  case M68k::EAOperandMode::RegIndex:
+    return 0x30 | RI->getEncodingValue(MCOp.OuterReg);
+
+  default:
+    llvm_unreachable("unhandled EA operand mode");
+  }
+}
+
 #include "M68kGenMCCodeBeads.inc"
 
 void M68kMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
@@ -323,7 +421,26 @@ void M68kMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
 
   const uint8_t *Beads = getGenInstrBeads(MI);
   if (!Beads || !*Beads) {
-    llvm_unreachable("*** Instruction does not have Beads defined");
+    // No beads defined, which means we're using a tablegen specified
+    // instruction.
+
+    uint16_t BriefWord = 0;
+
+    if (Desc.TSFlags & M68kII::INST_BRIEF_DISP) {
+      BriefWord |= MI.getOperand(0).getImm() & 0xFF;
+    }
+
+    uint16_t FirstWord = getBinaryCodeForInstr(MI, Fixups, STI);
+    support::endian::write<uint16_t>(OS, FirstWord, support::big);
+
+    if (Desc.TSFlags & M68kII::INST_BRIEF_MASK) {
+      support::endian::write<uint16_t>(OS, BriefWord, support::big);
+    }
+
+    for (auto Word : ExtraWords)
+      support::endian::write<uint16_t>(OS, Word, support::big);
+    ExtraWords.clear();
+    return;
   }
 
   uint64_t Buffer = 0;
