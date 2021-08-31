@@ -358,7 +358,8 @@ void CodeEmitterGen::emitInstructionBaseValues(
     Record *R = CGI->TheDef;
 
     if (R->getValueAsString("Namespace") == "TargetOpcode" ||
-        R->getValueAsBit("isPseudo")) {
+        R->getValueAsBit("isPseudo") ||
+        R->getValue("Inst") == nullptr) {
       o << "    "; emitInstBits(o, APInt(BitWidth, 0)); o << ",\n";
       continue;
     }
@@ -403,7 +404,8 @@ void CodeEmitterGen::run(raw_ostream &o) {
   for (const CodeGenInstruction *CGI : NumberedInstructions) {
     Record *R = CGI->TheDef;
     if (R->getValueAsString("Namespace") == "TargetOpcode" ||
-        R->getValueAsBit("isPseudo"))
+        R->getValueAsBit("isPseudo") ||
+        R->getValue("Inst") == nullptr)
       continue;
 
     if (const RecordVal *RV = R->getValue("EncodingInfos")) {
@@ -420,6 +422,7 @@ void CodeEmitterGen::run(raw_ostream &o) {
     BitsInit *BI = R->getValueAsBitsInit("Inst");
     BitWidth = std::max(BitWidth, BI->getNumBits());
   }
+  BitWidth = std::max(1u, BitWidth);
   UseAPInt = BitWidth > 64;
   
   // Emit function declaration
@@ -463,7 +466,8 @@ void CodeEmitterGen::run(raw_ostream &o) {
   // Construct all cases statement for each opcode
   for (Record *R : Insts) {
     if (R->getValueAsString("Namespace") == "TargetOpcode" ||
-        R->getValueAsBit("isPseudo"))
+        R->getValueAsBit("isPseudo") ||
+        R->getValue("Inst") == nullptr)
       continue;
     std::string InstName =
         (R->getValueAsString("Namespace") + "::" + R->getName()).str();
